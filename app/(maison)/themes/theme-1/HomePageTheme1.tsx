@@ -25,6 +25,16 @@ type Article = {
   publishedAt: Date | null;
 };
 
+type CategoryData = {
+  slug: string;
+  label: string | null;
+  metaDescription: string | null;
+  seoIntro: string | null;
+  description: string | null;
+  heroImage: string | null;
+  bullets: unknown;
+};
+
 type Props = {
   home: {
     heroEyebrow: string;
@@ -44,6 +54,7 @@ type Props = {
   heroArt: Article | undefined;
   cardArts: Article[];
   moreArts: Article[];
+  categoriesData?: CategoryData[];
 };
 
 export function HomePageTheme1({
@@ -57,6 +68,7 @@ export function HomePageTheme1({
   heroArt,
   cardArts,
   moreArts,
+  categoriesData = [],
 }: Props) {
   return (
     <>
@@ -212,7 +224,11 @@ export function HomePageTheme1({
 
         {expertiseCats.map((cat, i) => {
           const isLight = i === 1;
-          const img = categoryHeroImages[cat];
+          const slug = catSlug(cat);
+          const meta = categoriesData.find(c => c.slug === slug);
+          const img = meta?.heroImage || categoryHeroImages[cat];
+          const description = meta?.description || meta?.seoIntro || meta?.metaDescription;
+          const bullets = Array.isArray(meta?.bullets) ? meta.bullets as string[] : null;
           return (
             <div key={cat} style={{ maxWidth: 1200, marginLeft: "auto", marginRight: "auto" }}>
               <div className={`ms-exp-split${isLight ? " ms-exp-split--reverse ms-exp-split--light" : ""}`}>
@@ -227,18 +243,20 @@ export function HomePageTheme1({
                     Tout savoir sur {cat.toLowerCase()}
                   </h3>
                   <p className="ms-exp-split-text" style={isLight ? { color: "var(--c-mid)" } : undefined}>
-                    Nos experts décryptent tous les aspects de {cat.toLowerCase()} pour vous aider
-                    à prendre les meilleures décisions. Des conseils pratiques, des guides complets
-                    et des retours d&apos;expérience concrets à votre disposition.
+                    {description || `Nos experts décryptent tous les aspects de ${cat.toLowerCase()} pour vous aider à prendre les meilleures décisions. Des conseils pratiques, des guides complets et des retours d'expérience concrets à votre disposition.`}
                   </p>
                   <ul className={`ms-exp-split-list${isLight ? " ms-exp-split-list--dark" : ""}`}>
-                    <li>Guides pratiques et conseils d&apos;experts</li>
-                    <li>Erreurs à éviter et bonnes pratiques</li>
-                    <li>Tendances et actualités du secteur</li>
-                    <li>Comparatifs et recommandations</li>
+                    {bullets && bullets.length > 0 ? bullets.map((b, bi) => <li key={bi}>{b}</li>) : (
+                      <>
+                        <li>Guides pratiques et conseils d&apos;experts</li>
+                        <li>Erreurs à éviter et bonnes pratiques</li>
+                        <li>Tendances et actualités du secteur</li>
+                        <li>Comparatifs et recommandations</li>
+                      </>
+                    )}
                   </ul>
                   <Link
-                    href={`/${catSlug(cat)}`}
+                    href={`/${slug}`}
                     className={`ms-exp-split-cta${isLight ? " ms-exp-split-cta--dark" : ""}`}
                   >
                     Voir tous nos conseils →
@@ -254,20 +272,23 @@ export function HomePageTheme1({
         <section style={{ background: "var(--c-cream-2)", width: "100%" }}>
           <div className="ms-wrap" style={{ display: "flex", gap: 40, paddingTop: 72, paddingBottom: 80 }}>
             {extraCats.map((cat) => {
-              const img = categoryHeroImages[cat];
+              const slug = catSlug(cat);
+              const meta = categoriesData.find(c => c.slug === slug);
+              const img = meta?.heroImage || categoryHeroImages[cat];
+              const description = meta?.description || meta?.seoIntro || meta?.metaDescription;
               return (
                 <div key={cat} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-                  <Link href={`/${catSlug(cat)}`} style={{ display: "block", borderRadius: 14, overflow: "hidden", height: 320, position: "relative", marginBottom: 24 }}>
+                  <Link href={`/${slug}`} style={{ display: "block", borderRadius: 14, overflow: "hidden", height: 320, position: "relative", marginBottom: 24 }}>
                     {img && <img src={img} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                   </Link>
                   <span className="ms-tag ms-tag--green" style={{ marginBottom: 10, display: "inline-block" }}>{cat}</span>
                   <h3 style={{ fontFamily: "var(--f-display)", fontSize: 26, fontWeight: 700, color: "var(--c-dark)", marginBottom: 12 }}>
-                    <Link href={`/${catSlug(cat)}`}>Tout savoir sur {cat.toLowerCase()}</Link>
+                    <Link href={`/${slug}`}>Tout savoir sur {cat.toLowerCase()}</Link>
                   </h3>
                   <p style={{ fontSize: 14, color: "var(--c-mid)", lineHeight: 1.65, marginBottom: 16 }}>
-                    Guides pratiques, conseils d&apos;experts et retours d&apos;expérience sur {cat.toLowerCase()} — tout ce qu&apos;il faut savoir.
+                    {description || `Guides pratiques, conseils d'experts et retours d'expérience sur ${cat.toLowerCase()} — tout ce qu'il faut savoir.`}
                   </p>
-                  <Link href={`/${catSlug(cat)}`} className="ms-cat-duo-cta" style={{ marginTop: "auto" }}>
+                  <Link href={`/${slug}`} className="ms-cat-duo-cta" style={{ marginTop: "auto" }}>
                     Voir tous nos articles →
                   </Link>
                 </div>

@@ -35,6 +35,16 @@ type HomeContent = {
   expertiseTitle: string;
 };
 
+type CategoryData = {
+  slug: string;
+  label: string | null;
+  metaDescription: string | null;
+  seoIntro: string | null;
+  description: string | null;
+  heroImage: string | null;
+  bullets: unknown;
+};
+
 type Props = {
   home: HomeContent;
   heroImageUrl: string | null;
@@ -46,6 +56,7 @@ type Props = {
   heroArt: Article | undefined;
   cardArts: Article[];
   moreArts: Article[];
+  categoriesData?: CategoryData[];
 };
 
 export function HomePageTheme3({
@@ -58,6 +69,7 @@ export function HomePageTheme3({
   heroArt,
   cardArts,
   moreArts,
+  categoriesData = [],
 }: Props) {
   const allCats = [...expertiseCats, ...extraCats];
   // All 10 cardArts in grid, 5 altArts in alternating
@@ -462,13 +474,19 @@ export function HomePageTheme3({
                 <div style={{ flex: 1, height: 1, background: "var(--c-border)" }} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(allCats.length, 4)}, 1fr)`, gap: 20 }}>
-                {allCats.map((c, i) => (
-                  <Link key={c} href={`/${catSlug(c)}`} style={{ textDecoration: "none", borderRadius: 10, border: "1.5px solid var(--c-border)", padding: "24px 20px", background: "var(--c-cream)", display: "flex", flexDirection: "column", gap: 10, transition: "border-color 0.15s" }}>
-                    <span style={{ fontFamily: "var(--f-heading, sans-serif)", fontSize: 10, fontWeight: 700, color: "var(--c-terra, #b85c3a)", letterSpacing: "0.1em", textTransform: "uppercase" }}>0{i + 1}</span>
-                    <span style={{ fontFamily: "var(--f-display, Georgia, serif)", fontSize: 22, fontWeight: 700, color: "var(--c-dark)", lineHeight: 1.2 }}>{c}</span>
-                    <span style={{ fontFamily: "var(--f-heading, sans-serif)", fontSize: 11, color: "var(--c-sand)" }}>Voir tous les articles →</span>
-                  </Link>
-                ))}
+                {allCats.map((c, i) => {
+                  const slug = catSlug(c);
+                  const meta = categoriesData.find(d => d.slug === slug);
+                  const desc = meta?.description || meta?.seoIntro || meta?.metaDescription;
+                  return (
+                    <Link key={c} href={`/${slug}`} style={{ textDecoration: "none", borderRadius: 10, border: "1.5px solid var(--c-border)", padding: "24px 20px", background: "var(--c-cream)", display: "flex", flexDirection: "column", gap: 10, transition: "border-color 0.15s" }}>
+                      <span style={{ fontFamily: "var(--f-heading, sans-serif)", fontSize: 10, fontWeight: 700, color: "var(--c-terra, #b85c3a)", letterSpacing: "0.1em", textTransform: "uppercase" }}>0{i + 1}</span>
+                      <span style={{ fontFamily: "var(--f-display, Georgia, serif)", fontSize: 22, fontWeight: 700, color: "var(--c-dark)", lineHeight: 1.2 }}>{c}</span>
+                      {desc && <span style={{ fontFamily: "var(--f-body, Georgia, serif)", fontSize: 13, color: "var(--c-mid)", lineHeight: 1.5 }}>{desc}</span>}
+                      <span style={{ fontFamily: "var(--f-heading, sans-serif)", fontSize: 11, color: "var(--c-sand)" }}>Voir tous les articles →</span>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>

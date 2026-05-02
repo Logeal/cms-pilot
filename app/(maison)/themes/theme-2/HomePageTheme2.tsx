@@ -25,6 +25,16 @@ type Article = {
   publishedAt: Date | null;
 };
 
+type CategoryData = {
+  slug: string;
+  label: string | null;
+  metaDescription: string | null;
+  seoIntro: string | null;
+  description: string | null;
+  heroImage: string | null;
+  bullets: unknown;
+};
+
 type Props = {
   home: {
     heroEyebrow: string;
@@ -44,6 +54,7 @@ type Props = {
   heroArt: Article | undefined;
   cardArts: Article[];
   moreArts: Article[];
+  categoriesData?: CategoryData[];
 };
 
 export function HomePageTheme2({
@@ -57,6 +68,7 @@ export function HomePageTheme2({
   heroArt,
   cardArts,
   moreArts,
+  categoriesData = [],
 }: Props) {
   const allCats = [...expertiseCats, ...extraCats];
   const featuredImg = heroImageUrl ?? heroArt?.imageUrl ?? null;
@@ -790,7 +802,9 @@ export function HomePageTheme2({
 
             <div className={`t2-rub-grid t2-rub-grid--${allCats.length >= 5 ? "5" : "3"}`}>
               {allCats.slice(0, allCats.length >= 5 ? 5 : 3).map((cat, i) => {
-                const img = categoryHeroImages[cat];
+                const slug = catSlug(cat);
+                const meta = categoriesData.find(c => c.slug === slug);
+                const img = meta?.heroImage || categoryHeroImages[cat];
                 const isBig = allCats.length >= 5 ? i === 0 : false;
                 return (
                   <Link
