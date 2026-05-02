@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 function catToSlug(cat: string) {
   return cat.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");

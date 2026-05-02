@@ -11,7 +11,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN DATABASE_URL="file:/tmp/build.db" npx prisma migrate deploy && DATABASE_URL="file:/tmp/build.db" npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
