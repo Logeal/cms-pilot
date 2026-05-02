@@ -114,7 +114,9 @@ export default async function ArticlePage({ params }: { params: Params }) {
     } : {}),
   };
 
-  const props = { category, article, related };
+  // Strip leading <h1> from content — the title is already rendered in the page header
+  const cleanContent = article.content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, "");
+  const props = { category, article: { ...article, content: cleanContent }, related };
 
   const themeComponent = (() => {
     if (themeId === "theme-2") return <ArticlePageTheme2 {...props} />;
