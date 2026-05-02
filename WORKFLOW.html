@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow — Déploiement CMS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      line-height: 1.6;
+      padding: 40px 20px 80px;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 48px; }
+
+    .phase {
+      margin-bottom: 40px;
+    }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .phase-num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #6366f1;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .phase-title { font-size: 18px; font-weight: 700; color: #fff; }
+    .phase-desc { font-size: 13px; color: #64748b; margin-left: 46px; margin-top: -10px; margin-bottom: 16px; }
+
+    .steps { margin-left: 46px; display: flex; flex-direction: column; gap: 10px; }
+
+    .step {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .step.highlight {
+      border-color: #6366f1;
+      background: rgba(99,102,241,0.06);
+    }
+    .step.warning {
+      border-color: #f59e0b;
+      background: rgba(245,158,11,0.06);
+    }
+    .step.success {
+      border-color: #22c55e;
+      background: rgba(34,197,94,0.06);
+    }
+
+    .step-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-content { flex: 1; }
+    .step-title { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+    .step-body { font-size: 13px; color: #94a3b8; }
+    .step-body code {
+      background: #0f1117;
+      border: 1px solid #2a2d3a;
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #a5b4fc;
+    }
+    .step-body pre {
+      background: #0f1117;
+      border: 1px solid #2a2d3a;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #a5b4fc;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .tag-blue { background: rgba(99,102,241,0.2); color: #818cf8; }
+    .tag-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .tag-orange { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .tag-red { background: rgba(239,68,68,0.15); color: #f87171; }
+
+    .divider {
+      height: 1px;
+      background: #1e2130;
+      margin: 32px 0;
+    }
+
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .checklist li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #94a3b8; }
+    .checklist li::before { content: '☐'; color: #4f5568; flex-shrink: 0; margin-top: 1px; }
+
+    .note {
+      background: rgba(99,102,241,0.08);
+      border-left: 3px solid #6366f1;
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 8px;
+    }
+
+    .timeline-connector {
+      width: 2px;
+      height: 20px;
+      background: #2a2d3a;
+      margin-left: 61px;
+      margin-top: -4px;
+      margin-bottom: -4px;
+    }
+
+    a { color: #818cf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .pill {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .pill strong { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>🚀 Workflow — Mise en ligne d'un site CMS</h1>
+  <p class="subtitle">De l'achat du domaine aux 50 premiers articles publiés — étape par étape</p>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 1 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">1</div>
+      <div class="phase-title">Achat du nom de domaine <span class="tag tag-orange">Hostinger</span></div>
+    </div>
+    <p class="phase-desc">~2 min · Coût : 8–12€/an</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🌐</div>
+        <div class="step-content">
+          <div class="step-title">Acheter le domaine sur Hostinger</div>
+          <div class="step-body">
+            Aller sur <a href="https://hostinger.fr" target="_blank">hostinger.fr</a> → rechercher le domaine → ajouter au panier → payer.<br/>
+            <strong>Important :</strong> ne pas prendre l'hébergement Hostinger, seulement le nom de domaine.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📋</div>
+        <div class="step-content">
+          <div class="step-title">Noter les nameservers actuels</div>
+          <div class="step-body">
+            Dans Hostinger → Domaines → DNS. Tu vas devoir les changer dans l'étape 3. Laisse pour l'instant.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 2 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">2</div>
+      <div class="phase-title">Créer le VPS &amp; installer Coolify <span class="tag tag-blue">Serveur</span></div>
+    </div>
+    <p class="phase-desc">~15 min · Coût : ~8–15€/mois pour 50–100 sites</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🖥️</div>
+        <div class="step-content">
+          <div class="step-title">Commander un VPS</div>
+          <div class="step-body">
+            Choisir <strong>Hostinger KVM 2</strong> (~8€/mois) ou <strong>Contabo VPS S</strong> (~7€/mois).<br/>
+            OS : <strong>Ubuntu 22.04 LTS</strong>. Retenir l'IP du serveur (ex: <code>12.34.56.78</code>).
+            <div class="pill-row">
+              <div class="pill"><strong>RAM :</strong> 8 Go min</div>
+              <div class="pill"><strong>CPU :</strong> 4 vCPU min</div>
+              <div class="pill"><strong>Stockage :</strong> 80 Go min</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔧</div>
+        <div class="step-content">
+          <div class="step-title">Se connecter en SSH et installer Coolify</div>
+          <div class="step-body">
+            Ouvrir un terminal et coller ces commandes :
+            <pre>ssh root@VOTRE_IP_VPS
+
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash</pre>
+            Attendre ~5 min. Coolify est accessible sur <code>http://VOTRE_IP:8000</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔑</div>
+        <div class="step-content">
+          <div class="step-title">Créer le compte admin Coolify</div>
+          <div class="step-body">
+            Ouvrir <code>http://VOTRE_IP:8000</code> dans le navigateur → créer un compte admin → suivre le wizard de première configuration.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 3 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">3</div>
+      <div class="phase-title">Pointer le domaine vers le VPS <span class="tag tag-orange">DNS</span></div>
+    </div>
+    <p class="phase-desc">~5 min de config + jusqu'à 24h de propagation DNS</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">📡</div>
+        <div class="step-content">
+          <div class="step-title">Ajouter les enregistrements DNS sur Hostinger</div>
+          <div class="step-body">
+            Hostinger → Domaines → DNS/Nameservers → Gérer les DNS.<br/>
+            Ajouter ces deux enregistrements :
+            <pre>Type  Nom    Valeur
+A     @      VOTRE_IP_VPS
+A     www    VOTRE_IP_VPS</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step warning">
+        <div class="step-icon">⏳</div>
+        <div class="step-content">
+          <div class="step-title">Attendre la propagation DNS</div>
+          <div class="step-body">
+            En général 5–30 min, parfois jusqu'à 24h. Vérifier sur <a href="https://dnschecker.org" target="_blank">dnschecker.org</a> que ton domaine pointe bien vers l'IP du VPS avant de continuer.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 4 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">4</div>
+      <div class="phase-title">Déployer le CMS sur Coolify <span class="tag tag-blue">Déploiement</span></div>
+    </div>
+    <p class="phase-desc">~10 min</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">📦</div>
+        <div class="step-content">
+          <div class="step-title">Mettre le projet CMS sur GitHub</div>
+          <div class="step-body">
+            Sur ton Mac, dans le dossier du CMS :
+            <pre>git add .
+git commit -m "Initial CMS"
+git remote add origin https://github.com/TON_USER/cms-pilot.git
+git push -u origin main</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step highlight">
+        <div class="step-icon">🚀</div>
+        <div class="step-content">
+          <div class="step-title">Créer une nouvelle application dans Coolify</div>
+          <div class="step-body">
+            Dans Coolify → <strong>New Resource</strong> → <strong>Application</strong> → <strong>GitHub</strong> → sélectionner le repo <code>cms-pilot</code>.<br/><br/>
+            Configurer :
+            <ul class="checklist">
+              <li>Build Pack : <strong>Nixpacks</strong></li>
+              <li>Port : <strong>3000</strong></li>
+              <li>Domaine : <strong>tondomaine.fr</strong></li>
+              <li>Activer HTTPS (SSL Let's Encrypt automatique)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step highlight">
+        <div class="step-icon">⚙️</div>
+        <div class="step-content">
+          <div class="step-title">Renseigner les variables d'environnement</div>
+          <div class="step-body">
+            Dans Coolify → l'app → onglet <strong>Environment Variables</strong>, ajouter :
+            <pre>DATABASE_URL=file:./prisma/dev.db
+ADMIN_EMAIL=ton@email.com
+ADMIN_PASSWORD=MotDePasseFort!
+AUTH_SECRET=une_chaine_aleatoire_32_caracteres
+NEXT_PUBLIC_APP_URL=https://tondomaine.fr
+ANTHROPIC_API_KEY=sk-ant-...
+UNSPLASH_ACCESS_KEY=ta_cle_unsplash</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">▶️</div>
+        <div class="step-content">
+          <div class="step-title">Lancer le déploiement</div>
+          <div class="step-body">
+            Cliquer <strong>Deploy</strong>. Coolify build l'app Next.js et la démarre automatiquement.<br/>
+            Le CMS est accessible sur <code>https://tondomaine.fr</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔄</div>
+        <div class="step-content">
+          <div class="step-title">Initialiser la base de données</div>
+          <div class="step-body">
+            Dans Coolify → l'app → onglet <strong>Terminal</strong> (ou SSH sur le VPS dans le conteneur), exécuter :
+            <pre>npx prisma migrate deploy</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 5 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">5</div>
+      <div class="phase-title">Configurer le site via le Setup Wizard <span class="tag tag-green">CMS Admin</span></div>
+    </div>
+    <p class="phase-desc">~5 min · Accessible sur https://tondomaine.fr/admin/setup</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🔓</div>
+        <div class="step-content">
+          <div class="step-title">Se connecter à l'admin</div>
+          <div class="step-body">
+            Aller sur <code>https://tondomaine.fr/login</code> → entrer email + mot de passe définis dans les variables d'environnement.
+          </div>
+        </div>
+      </div>
+      <div class="step highlight">
+        <div class="step-icon">🧙</div>
+        <div class="step-content">
+          <div class="step-title">Suivre le wizard de configuration (5 onglets)</div>
+          <div class="step-body">
+            <ul class="checklist">
+              <li><strong>Onglet 1 — Site :</strong> Nom du site (ex: "Tout sur le jardin")</li>
+              <li><strong>Onglet 2 — Thème :</strong> Choisir parmi les 12 thèmes disponibles</li>
+              <li><strong>Onglet 3 — Style :</strong> Palette de couleurs + typographie</li>
+              <li><strong>Onglet 4 — Catégories :</strong> Ajouter les catégories du site</li>
+              <li><strong>Onglet 5 — Accueil :</strong> Textes hero + images de catégories → la clé API est affichée ici</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step success">
+        <div class="step-icon">🗝️</div>
+        <div class="step-content">
+          <div class="step-title">Copier la clé API CMS</div>
+          <div class="step-body">
+            Dans l'onglet <strong>Accueil</strong> du wizard, la clé API du site est affichée. <strong>La copier maintenant</strong> — elle sera utilisée dans Pilot pour envoyer les articles.
+            <div class="note">La clé ressemble à : <code>clxxxxxxxxxxxxxxxxxxxxx</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 6 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">6</div>
+      <div class="phase-title">Configurer Pilot pour ce site <span class="tag tag-blue">Pilot</span></div>
+    </div>
+    <p class="phase-desc">~2 min</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🔗</div>
+        <div class="step-content">
+          <div class="step-title">Lier le site Pilot au CMS</div>
+          <div class="step-body">
+            Dans Pilot → <strong>Sites</strong> → ouvrir le site correspondant → cliquer <strong>Modifier</strong>.<br/>
+            Descendre jusqu'à la section <strong>CMS</strong> et renseigner :
+            <pre>URL du CMS  : https://tondomaine.fr
+Clé API CMS : [la clé copiée à l'étape précédente]</pre>
+            Sauvegarder.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 7 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">7</div>
+      <div class="phase-title">Générer et publier les 50 premiers articles <span class="tag tag-blue">Pilot</span></div>
+    </div>
+    <p class="phase-desc">~30–60 min selon la vitesse de génération IA</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">✍️</div>
+        <div class="step-content">
+          <div class="step-title">Générer les articles depuis Pilot</div>
+          <div class="step-body">
+            Dans Pilot → <strong>Articles</strong> → <strong>Nouvel article</strong>.<br/>
+            Pour chaque article : sélectionner le site, la catégorie, le sujet, le mot-clé → <strong>Générer</strong>.<br/>
+            Faire 10 articles par catégorie (5 catégories × 10 = 50 articles).
+            <div class="note">Astuce : utiliser la génération en lot si disponible pour enchaîner les générations sans intervention.</div>
+          </div>
+        </div>
+      </div>
+      <div class="step highlight">
+        <div class="step-icon">📤</div>
+        <div class="step-content">
+          <div class="step-title">Envoyer chaque article au CMS</div>
+          <div class="step-body">
+            Pour chaque article généré dans Pilot :<br/>
+            Ouvrir l'article → vérifier le contenu → cliquer <strong>"Envoyer au CMS"</strong> (bouton en haut à droite).<br/>
+            Un lien vers l'article publié s'affiche en confirmation.
+          </div>
+        </div>
+      </div>
+      <div class="step success">
+        <div class="step-icon">✅</div>
+        <div class="step-content">
+          <div class="step-title">Vérifier sur le site</div>
+          <div class="step-body">
+            Aller sur <code>https://tondomaine.fr</code> → vérifier que les articles apparaissent sur la homepage et dans les pages catégories.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ PHASE 8 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">8</div>
+      <div class="phase-title">Publication automatique des articles <span class="tag tag-blue">CMS</span></div>
+    </div>
+    <p class="phase-desc">Cron actif — publication automatique toutes les heures</p>
+    <div class="steps">
+      <div class="step success">
+        <div class="step-icon">🕐</div>
+        <div class="step-content">
+          <div class="step-title">Cron de publication automatique</div>
+          <div class="step-body">
+            Le CMS contient un endpoint <code>/api/admin/auto-publish</code> déclenché toutes les heures par le cron configuré dans <code>vercel.json</code>.<br/>
+            Il publie automatiquement les articles dont la date de publication planifiée est passée.
+            <div class="note">Ce cron fonctionne nativement sur Vercel. Sur Coolify/VPS, il faut configurer un cron externe (ex: <code>crontab</code> ou Coolify Cron Jobs) qui appelle <code>https://tondomaine.fr/api/admin/auto-publish</code> toutes les heures avec le header <code>x-api-key</code>.</div>
+          </div>
+        </div>
+      </div>
+      <div class="step warning">
+        <div class="step-icon">💾</div>
+        <div class="step-content">
+          <div class="step-title">Sauvegardes manuelles (automatique à venir)</div>
+          <div class="step-body">
+            La sauvegarde automatique vers Cloudflare R2 n'est pas encore implémentée.<br/>
+            En attendant, faire des sauvegardes manuelles via SSH :
+            <pre>scp root@VOTRE_IP:/app/prisma/dev.db ./backup-$(date +%F).db</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════════ RÉCAP -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">✓</div>
+      <div class="phase-title">Récapitulatif des coûts</div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">💰</div>
+        <div class="step-content">
+          <div class="step-title">Coûts mensuels pour 50–100 sites</div>
+          <div class="step-body">
+            <div class="pill-row">
+              <div class="pill"><strong>Domaines Hostinger :</strong> 8–12€/an × nb sites</div>
+              <div class="pill"><strong>VPS (tous les sites) :</strong> ~12€/mois</div>
+              <div class="pill"><strong>Pilot (Railway) :</strong> ~5$/mois</div>
+              <div class="pill"><strong>Cloudflare R2 :</strong> gratuit &lt;10 Go</div>
+              <div class="pill"><strong>Anthropic API :</strong> selon usage</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step success">
+        <div class="step-icon">⏱️</div>
+        <div class="step-content">
+          <div class="step-title">Temps total pour un nouveau site</div>
+          <div class="step-body">
+            <div class="pill-row">
+              <div class="pill">Domaine + DNS : <strong>~5 min</strong></div>
+              <div class="pill">Déploiement Coolify : <strong>~5 min</strong></div>
+              <div class="pill">Wizard setup : <strong>~5 min</strong></div>
+              <div class="pill">50 articles Pilot : <strong>~30–60 min</strong></div>
+              <div class="pill"><strong>Total : ~1h par site</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
