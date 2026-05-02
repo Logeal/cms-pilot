@@ -15,7 +15,19 @@ export async function GET() {
   const categories = await prisma.category.findMany({
     orderBy: { label: "asc" },
   });
-  return NextResponse.json(categories);
+  return NextResponse.json(categories, {
+    headers: { "Access-Control-Allow-Origin": "*" },
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
 }
 
 // POST /api/categories — create a new category
