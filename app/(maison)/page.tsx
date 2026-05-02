@@ -47,8 +47,6 @@ export default async function HomePage() {
   const heroImageUrl = setup.heroImageUrl ?? null;
   const setupCategories = setup.categories ?? [];
   const categoryHeroImages = setup.categoryHeroImages ?? {};
-  const expertiseCats = setupCategories.slice(0, 3);
-  const extraCats = setupCategories.slice(3);
 
   const totalArticles = await prisma.article.count({
     where: { siteId: site.id, status: "published" },
@@ -64,18 +62,23 @@ export default async function HomePage() {
   const cardArts = articles.slice(1, 11);
   const moreArts = articles.slice(11, 16);
 
-  const cats = [...new Set(articles.map((a) => a.category).filter(Boolean))] as string[];
-  const totalCats = setupCategories.length > 0 ? setupCategories.length : cats.length;
+  // Fetch all category metadata from DB
+  const allCategoriesData = await prisma.category.findMany({
+    orderBy: { label: "asc" },
+    select: { slug: true, label: true, metaDescription: true, seoIntro: true, description: true, heroImage: true, bullets: true },
+  });
 
-  // Fetch category metadata for theme-4 category showcase
-  const categoriesData = setupCategories.length > 0
-    ? await prisma.category.findMany({
-        where: { slug: { in: setupCategories.map(c =>
-          c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-")
-        ) } },
-        select: { slug: true, label: true, metaDescription: true, seoIntro: true, description: true, heroImage: true, bullets: true },
-      })
-    : [];
+  // If setup.categories is empty, fall back to DB categories order
+  const activeCategories = setupCategories.length > 0
+    ? setupCategories
+    : allCategoriesData.map(c => c.label);
+
+  const expertiseCats = activeCategories.slice(0, 3);
+  const extraCats = activeCategories.slice(3);
+  const totalCats = activeCategories.length;
+
+  // Match categoriesData to activeCategories
+  const categoriesData = allCategoriesData;
 
   const props = {
     home,
