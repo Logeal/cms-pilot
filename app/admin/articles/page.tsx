@@ -64,6 +64,11 @@ export default function ArticlesPage() {
   // Confirm suppression
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // article id
 
+  // Selection + inline category edit
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [bulkCatValue, setBulkCatValue] = useState("");
+
   async function load() {
     const [artRes, catRes] = await Promise.all([
       fetch("/api/articles"),
@@ -84,6 +89,48 @@ export default function ArticlesPage() {
   async function deleteArticle(id: string) {
     await fetch(`/api/articles/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function updateCategory(id: string, category: string) {
+    await fetch(`/api/articles/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: category || null }),
+    });
+    setArticles(prev => prev.map(a => a.id === id ? { ...a, category: category || null } : a));
+    setEditingCatId(null);
+  }
+
+  async function bulkUpdateCategory() {
+    await Promise.all([...selected].map(id =>
+      fetch(`/api/articles/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: bulkCatValue || null }),
+      })
+    ));
+    setArticles(prev => prev.map(a => selected.has(a.id) ? { ...a, category: bulkCatValue || null } : a));
+    setSelected(new Set());
+    setBulkCatValue("");
+  }
+
+  async function bulkDelete() {
+    await Promise.all([...selected].map(id => fetch(`/api/articles/${id}`, { method: "DELETE" })));
+    setArticles(prev => prev.filter(a => !selected.has(a.id)));
+    setSelected(new Set());
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map(a => a.id)));
   }
 
   async function createArticle() {
@@ -201,11 +248,71 @@ export default function ArticlesPage() {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 12,
+          padding: "10px 16px", background: "var(--accent-bg)", border: "1px solid var(--accent)",
+          borderRadius: 10, flexWrap: "wrap",
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--accent-light)", whiteSpace: "nowrap" }}>
+            {selected.size} article{selected.size > 1 ? "s" : ""} sélectionné{selected.size > 1 ? "s" : ""}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, flexWrap: "wrap" }}>
+            <select
+              value={bulkCatValue}
+              onChange={e => setBulkCatValue(e.target.value)}
+              style={{
+                padding: "6px 10px", borderRadius: 7,
+                background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", fontSize: 12, outline: "none", cursor: "pointer",
+              }}
+            >
+              <option value="">— Sans catégorie —</option>
+              {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
+            </select>
+            <button
+              onClick={bulkUpdateCategory}
+              style={{
+                padding: "6px 14px", borderRadius: 7, border: "none",
+                background: "var(--accent)", color: "#fff",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Changer la catégorie
+            </button>
+            <button
+              onClick={bulkDelete}
+              style={{
+                padding: "6px 14px", borderRadius: 7, border: "1px solid var(--danger)",
+                background: "transparent", color: "var(--danger)",
+                fontSize: 12, cursor: "pointer",
+              }}
+            >
+              Supprimer
+            </button>
+          </div>
+          <button
+            onClick={() => setSelected(new Set())}
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" }}
+          >×</button>
+        </div>
+      )}
+
       {/* Table */}
       <div style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              <th style={{ padding: "12px 16px", width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && selected.size === filtered.length}
+                  ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: "pointer" }}
+                />
+              </th>
               {([
                 { key: "title",     label: "Titre" },
                 { key: "site",      label: "Site" },
@@ -231,16 +338,19 @@ export default function ArticlesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</td></tr>
+              <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Aucun article trouvé</td></tr>
+              <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Aucun article trouvé</td></tr>
             ) : filtered.map(a => (
               <tr
                 key={a.id}
-                style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-hover)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s", background: selected.has(a.id) ? "var(--accent-bg)" : undefined }}
+                onMouseEnter={e => { if (!selected.has(a.id)) e.currentTarget.style.background = "var(--bg-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = selected.has(a.id) ? "var(--accent-bg)" : "transparent"; }}
               >
+                <td style={{ padding: "12px 16px" }}>
+                  <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)} style={{ cursor: "pointer" }} />
+                </td>
                 <td style={{ padding: "12px 16px" }}>
                   <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
                     {a.title}
@@ -248,11 +358,34 @@ export default function ArticlesPage() {
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>/{a.slug}</div>
                 </td>
                 <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--text-secondary)" }}>{a.site.name}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--text-muted)" }}>
-                  {a.category
-                    ? <span style={{ padding: "2px 8px", borderRadius: 20, background: "var(--bg-tertiary)", border: "1px solid var(--border)", fontSize: 11 }}>{a.category}</span>
-                    : <span style={{ color: "var(--border)" }}>—</span>
-                  }
+                <td style={{ padding: "8px 16px", fontSize: 13 }}>
+                  {editingCatId === a.id ? (
+                    <select
+                      autoFocus
+                      value={a.category ?? ""}
+                      onChange={e => updateCategory(a.id, e.target.value)}
+                      onBlur={() => setEditingCatId(null)}
+                      style={{
+                        padding: "4px 8px", borderRadius: 6,
+                        background: "var(--bg-primary)", border: "1px solid var(--accent)",
+                        color: "var(--text-primary)", fontSize: 12, outline: "none", cursor: "pointer",
+                      }}
+                    >
+                      <option value="">— Sans catégorie —</option>
+                      {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
+                    </select>
+                  ) : (
+                    <span
+                      onClick={() => setEditingCatId(a.id)}
+                      title="Cliquer pour modifier"
+                      style={{ cursor: "pointer" }}
+                    >
+                      {a.category
+                        ? <span style={{ padding: "2px 8px", borderRadius: 20, background: "var(--bg-tertiary)", border: "1px solid var(--border)", fontSize: 11 }}>{a.category}</span>
+                        : <span style={{ color: "var(--border)", fontSize: 12 }}>— ajouter</span>
+                      }
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: "12px 16px" }}>
                   <span className={STATUS_COLORS[a.status] ?? "badge badge-draft"}>

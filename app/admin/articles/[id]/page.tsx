@@ -57,6 +57,7 @@ export default function ArticleEditor() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [article, setArticle] = useState<Article | null>(null);
+  const [categories, setCategories] = useState<{ id: string; label: string }[]>([]);
   const [tab, setTab] = useState<"preview" | "html">("preview");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -80,6 +81,7 @@ export default function ArticleEditor() {
 
   useEffect(() => {
     fetch(`/api/articles/${id}`).then(r => r.json()).then(setArticle);
+    fetch("/api/categories").then(r => r.json()).then(setCategories);
   }, [id]);
 
   // Injecte le contenu dans le contenteditable :
@@ -520,12 +522,17 @@ export default function ArticleEditor() {
 
           {/* Catégorie */}
           <Field label="Catégorie">
-            <input
+            <select
               className="cms-input"
               value={article.category ?? ""}
               onChange={e => set("category", e.target.value || null)}
-              placeholder="Ex: Assurance"
-            />
+              style={{ cursor: "pointer" }}
+            >
+              <option value="">— Sans catégorie —</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.label}>{c.label}</option>
+              ))}
+            </select>
           </Field>
 
           <div style={{ height: 1, background: "var(--border)", margin: "18px 0" }} />
