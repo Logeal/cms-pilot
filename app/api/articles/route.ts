@@ -1,0 +1,131 @@
+import { NextRequest, NextResponse } from "next/server";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
+import { prisma } from "@/lib/prisma";
+
+const PRIVATE_IP = /^(https?:\/\/)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/i;
+
+async function mirrorImage(url: string): Promise<string> {
+  try {
+    if (PRIVATE_IP.test(url)) return url;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return url;
+    const contentType = res.headers.get("content-type") ?? "";
+    const extMap: Record<string, string> = {
+      "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+      "image/gif": ".gif", "image/svg+xml": ".svg",
+    };
+    const ext = extMap[contentType.split(";")[0].trim()] ?? path.extname(new URL(url).pathname) ?? ".jpg";
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const arrayBuffer = await res.arrayBuffer();
+    if (arrayBuffer.byteLength > 10 * 1024 * 1024) return url; // 10 MB max
+    const buffer = Buffer.from(arrayBuffer);
+    await writeFile(path.join(uploadsDir, filename), buffer);
+    return `/uploads/${filename}`;
+  } catch {
+    return url;
+  }
+}
+
+// POST /api/articles — called by Pilot with Bearer <apiKey>
+export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const apiKey = authHeader.replace("Bearer ", "").trim();
+  const site = await prisma.site.findUnique({ where: { apiKey } });
+  if (!site) {
+    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+  }
+
+  let body: {
+    title?: string;
+    slug?: string;
+    content?: string;
+    metaTitle?: string;
+    metaDescription?: string;
+    category?: string;
+    status?: string;
+    imageUrl?: string;
+    subject?: string;
+    keyword?: string;
+  };
+
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const { title, slug, content, metaTitle, metaDescription, category, status, imageUrl, subject, keyword } = body;
+
+  if (!title || !slug || !content) {
+    return NextResponse.json(
+      { error: "title, slug and content are required" },
+      { status: 400 }
+    );
+  }
+
+  // Mirror external images locally so they don't disappear if the source dies
+  const localImageUrl = imageUrl && imageUrl.startsWith("http")
+    ? await mirrorImage(imageUrl)
+    : imageUrl ?? null;
+
+  const article = await prisma.article.upsert({
+    where: { siteId_slug: { siteId: site.id, slug } },
+    update: {
+      title,
+      content,
+      metaTitle:       metaTitle ?? null,
+      metaDescription: metaDescription ?? null,
+      category:        category ?? null,
+      status:          status ?? "draft",
+      imageUrl:        localImageUrl,
+      subject:         subject ?? null,
+      keyword:         keyword ?? null,
+      publishedAt:     status === "published" ? new Date() : null,
+    },
+    create: {
+      siteId: site.id,
+      title,
+      slug,
+      content,
+      metaTitle:       metaTitle ?? null,
+      metaDescription: metaDescription ?? null,
+      category:        category ?? null,
+      status:          status ?? "draft",
+      imageUrl:        localImageUrl,
+      subject:         subject ?? null,
+      keyword:         keyword ?? null,
+      publishedAt:     status === "published" ? new Date() : null,
+    },
+  });
+
+  const baseUrl = site.url.replace(/\/$/, "");
+  const catSlug = (cat: string) => cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
+  const articleUrl = article.category
+    ? `${baseUrl}/${catSlug(article.category)}/${article.slug}`
+    : `${baseUrl}/${article.slug}`;
+  return NextResponse.json(
+    { id: article.id, slug: article.slug, status: article.status, url: articleUrl },
+    { status: 201 }
+  );
+}
+
+// GET /api/articles — admin list
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const siteId = searchParams.get("siteId");
+
+  const articles = await prisma.article.findMany({
+    where: siteId ? { siteId } : undefined,
+    orderBy: { createdAt: "desc" },
+    include: { site: { select: { name: true, url: true } } },
+  });
+
+  return NextResponse.json(articles);
+}
