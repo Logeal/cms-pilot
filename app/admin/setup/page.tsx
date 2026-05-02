@@ -361,11 +361,24 @@ export default function SetupPage() {
     setError("");
     setSaving(true);
     try {
-      const res = await fetch(`/api/sites/${siteId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: siteName.trim(), url: siteUrl.trim() }),
-      });
+      let res;
+      if (siteId) {
+        res = await fetch(`/api/sites/${siteId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: siteName.trim(), url: siteUrl.trim() }),
+        });
+      } else {
+        res = await fetch("/api/sites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: siteName.trim(), url: siteUrl.trim() }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          if (created.id) setSiteId(created.id);
+        }
+      }
       if (res.ok) flash("site");
     } finally { setSaving(false); }
   }
