@@ -9,6 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   serverExternalPackages: ["better-sqlite3", "@prisma/adapter-better-sqlite3", "@anthropic-ai/sdk"],
   async headers() {
     return [
