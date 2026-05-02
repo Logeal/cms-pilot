@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
+import "./theme.css";
 import { prisma } from "@/lib/prisma";
 import { getPalette } from "@/lib/palettes";
 import { parseJsonField } from "@/lib/parseJson";
