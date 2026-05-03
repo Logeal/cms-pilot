@@ -15,6 +15,7 @@ type Article = {
   slug: string;
   category: string | null;
   imageUrl: string | null;
+  imageAttribution: string | null;
   metaDescription: string | null;
   content: string;
   publishedAt: Date | null;
@@ -67,6 +68,16 @@ export function ArticlePageTheme1({ category, article, related }: Props) {
             {article.imageUrl && (
               <div className="ms-art-header-img">
                 <img src={article.imageUrl} alt={article.title} />
+                {article.imageAttribution && (() => {
+                  try {
+                    const a = JSON.parse(article.imageAttribution) as { name: string; link: string };
+                    return (
+                      <p style={{ fontSize: 11, color: "var(--c-sand)", marginTop: 6, textAlign: "right" }}>
+                        Photo : <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--c-sand)" }}>{a.name}</a> / <a href="https://unsplash.com?utm_source=pilot_cms&utm_medium=referral" target="_blank" rel="noopener noreferrer" style={{ color: "var(--c-sand)" }}>Unsplash</a>
+                      </p>
+                    );
+                  } catch { return null; }
+                })()}
               </div>
             )}
           </div>

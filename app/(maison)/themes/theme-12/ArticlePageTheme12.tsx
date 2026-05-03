@@ -22,7 +22,6 @@ type Article = {
 };
 
 type Props = { category: string; article: Article; related: Article[] };
-
 export function ArticlePageTheme12({ category, article, related }: Props) {
   const readTime = article.wordCount ? Math.ceil(article.wordCount / 200) : null;
 

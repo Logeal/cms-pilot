@@ -13,6 +13,7 @@ interface Article {
   category: string | null;
   status: string;
   imageUrl: string | null;
+  imageAttribution: string | null;
   publishedAt: string | null;
   subject: string | null;
   keyword: string | null;
@@ -214,9 +215,17 @@ export default function ArticleEditor() {
   }
 
   async function refreshImage() {
-    const query = article?.keyword ?? article?.subject ?? article?.title ?? "nature";
-    const url = `https://source.unsplash.com/800x450/?${encodeURIComponent(query)}&sig=${Date.now()}`;
-    set("imageUrl", url);
+    if (!article) return;
+    const query = article.keyword ?? article.subject ?? article.title ?? "maison intérieur";
+    const res = await fetch("/api/admin/refresh-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, articleId: article.id }),
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { url: string; attribution: string };
+    set("imageUrl", data.url);
+    set("imageAttribution" as keyof Article, data.attribution);
   }
 
   if (!article) {
@@ -498,6 +507,16 @@ export default function ArticleEditor() {
               onChange={e => set("imageUrl", e.target.value || null)}
               placeholder="https://images.unsplash.com/…"
             />
+            {article.imageAttribution && (() => {
+              try {
+                const a = JSON.parse(article.imageAttribution) as { name: string; username: string; link: string };
+                return (
+                  <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                    Photo by <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-light)" }}>{a.name}</a> on <a href="https://unsplash.com?utm_source=pilot_cms&utm_medium=referral" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-light)" }}>Unsplash</a>
+                  </div>
+                );
+              } catch { return null; }
+            })()}
           </Field>
 
           {/* Sujet */}

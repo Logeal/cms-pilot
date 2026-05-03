@@ -31,7 +31,6 @@ type Props = {
   article: Article;
   related: Article[];
 };
-
 export function ArticlePageTheme2({ category, article, related }: Props) {
   return (
     <>

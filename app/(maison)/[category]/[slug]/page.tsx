@@ -70,6 +70,12 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
   const article = await prisma.article.findFirst({
     where: { siteId: site.id, slug, status: "published" },
+    select: {
+      id: true, title: true, slug: true, content: true, metaTitle: true,
+      metaDescription: true, category: true, status: true, imageUrl: true,
+      imageAttribution: true, publishedAt: true, wordCount: true,
+      subject: true, keyword: true, updatedAt: true,
+    },
   });
   if (!article) notFound();
 

@@ -31,7 +31,8 @@ model Article {
   metaDescription String?
   category        String?
   status          String    @default("draft")
-  imageUrl        String?
+  imageUrl             String?
+  imageAttribution     String?
   publishedAt     DateTime?
   subject         String?
   keyword         String?
@@ -70,7 +71,8 @@ model Category {
   seoFaq          Json?
   fromSetup       Boolean  @default(false)
   description     String?
-  heroImage       String?
+  heroImage            String?
+  heroImageAttribution String?
   bullets         Json?
   createdAt       DateTime @default(now())
 }

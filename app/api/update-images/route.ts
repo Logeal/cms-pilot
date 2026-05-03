@@ -18,12 +18,15 @@ const categoryQueries: Record<string, string> = {
   "Conseils":    "advice professional meeting consultation",
 };
 
-async function fetchUnsplashPool(query: string, needed: number): Promise<string[]> {
-  const urls: string[] = [];
+type UnsplashPhoto = { url: string; attribution: string };
+
+async function fetchUnsplashPool(query: string, needed: number): Promise<UnsplashPhoto[]> {
+  const photos: UnsplashPhoto[] = [];
+  const seen = new Set<string>();
   let page = 1;
 
-  while (urls.length < needed && page <= 5) {
-    const perPage = Math.min(30, needed - urls.length + 5);
+  while (photos.length < needed && page <= 5) {
+    const perPage = Math.min(30, needed - photos.length + 5);
     const res = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}&orientation=landscape`,
       { headers: { Authorization: `Client-ID ${ACCESS_KEY}` } }
@@ -33,12 +36,22 @@ async function fetchUnsplashPool(query: string, needed: number): Promise<string[
 
     for (const r of data.results) {
       const url = r.urls.regular as string;
-      if (!urls.includes(url)) urls.push(url);
+      if (!seen.has(url)) {
+        seen.add(url);
+        photos.push({
+          url,
+          attribution: JSON.stringify({
+            name: r.user.name,
+            username: r.user.username,
+            link: `${r.user.links.html}?utm_source=pilot_cms&utm_medium=referral`,
+          }),
+        });
+      }
     }
     page++;
   }
 
-  return urls;
+  return photos;
 }
 
 export async function GET() {
@@ -67,17 +80,20 @@ export async function GET() {
     const query = categoryQueries[cat] ?? `${cat} home interior`;
     const pool = await fetchUnsplashPool(query, ids.length + 10);
 
-    // On filtre les URLs déjà utilisées dans d'autres catégories
-    const available = pool.filter((u) => !usedUrls.has(u));
+    const available = pool.filter((p) => !usedUrls.has(p.url));
 
     for (let i = 0; i < ids.length; i++) {
-      const imageUrl = available[i];
-      if (!imageUrl) continue; // pas assez d'images Unsplash dispo
+      const photo = available[i];
+      if (!photo) continue;
 
-      usedUrls.add(imageUrl);
+      usedUrls.add(photo.url);
+      // Trigger download as required by Unsplash guidelines
+      fetch(`https://api.unsplash.com/photos/${photo.url.match(/photo-([^?/]+)/)?.[1]}/download`, {
+        headers: { Authorization: `Client-ID ${ACCESS_KEY}` }
+      }).catch(() => {});
       await prisma.article.update({
         where: { id: ids[i] },
-        data: { imageUrl },
+        data: { imageUrl: photo.url, imageAttribution: photo.attribution },
       });
       updated++;
     }

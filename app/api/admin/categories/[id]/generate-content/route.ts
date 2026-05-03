@@ -5,7 +5,9 @@ import { requireAuth } from "@/lib/requireAuth";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-async function fetchUnsplashImage(query: string): Promise<string | null> {
+type UnsplashPhoto = { url: string; attribution: string };
+
+async function fetchUnsplashImage(query: string): Promise<UnsplashPhoto | null> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY;
   if (!accessKey) return null;
   try {
@@ -14,7 +16,18 @@ async function fetchUnsplashImage(query: string): Promise<string | null> {
       { headers: { Authorization: `Client-ID ${accessKey}` } }
     );
     const data = await res.json();
-    return data.results?.[0]?.urls?.regular ?? null;
+    const photo = data.results?.[0];
+    if (!photo) return null;
+    // Trigger download as required by Unsplash guidelines
+    fetch(photo.links.download_location, { headers: { Authorization: `Client-ID ${accessKey}` } }).catch(() => {});
+    return {
+      url: photo.urls.regular,
+      attribution: JSON.stringify({
+        name: photo.user.name,
+        username: photo.user.username,
+        link: `${photo.user.links.html}?utm_source=pilot_cms&utm_medium=referral`,
+      }),
+    };
   } catch {
     return null;
   }
@@ -75,14 +88,15 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown, sans backticks) :
     return NextResponse.json({ error: "Parsing failed", raw }, { status: 500 });
   }
 
-  const heroImage = await fetchUnsplashImage(generated.imageQuery ?? cat.label);
+  const photo = await fetchUnsplashImage(generated.imageQuery ?? cat.label);
 
   await prisma.category.update({
     where: { id },
     data: {
       description: generated.description,
       bullets: generated.bullets,
-      heroImage: heroImage ?? undefined,
+      heroImage: photo?.url ?? undefined,
+      heroImageAttribution: photo?.attribution ?? undefined,
     },
   });
 
@@ -90,6 +104,6 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown, sans backticks) :
     ok: true,
     description: generated.description,
     bullets: generated.bullets,
-    heroImage,
+    heroImage: photo?.url ?? null,
   });
 }
