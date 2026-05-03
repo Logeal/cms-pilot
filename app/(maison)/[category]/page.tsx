@@ -72,8 +72,8 @@ export default async function CategoryPage({
   const setupCategories: string[] = menuConfig?.setup?.categories ?? [];
   const themeId: string = menuConfig?.setup?.themeId ?? "theme-1";
 
-  const label = labelFromSlug(category, setupCategories);
   const categoryMeta = await prisma.category.findUnique({ where: { slug: category } });
+  const label = categoryMeta?.label ?? labelFromSlug(category, setupCategories);
 
   const [total, articles] = await Promise.all([
     prisma.article.count({
