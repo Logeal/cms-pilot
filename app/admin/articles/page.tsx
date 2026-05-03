@@ -120,6 +120,18 @@ export default function ArticlesPage() {
     setSelected(new Set());
   }
 
+  async function bulkPublish() {
+    await Promise.all([...selected].map(id =>
+      fetch(`/api/articles/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+      })
+    ));
+    setArticles(prev => prev.map(a => selected.has(a.id) ? { ...a, status: "published", publishedAt: new Date().toISOString() } : a));
+    setSelected(new Set());
+  }
+
   function toggleSelect(id: string) {
     setSelected(prev => {
       const next = new Set(prev);
@@ -280,6 +292,16 @@ export default function ArticlesPage() {
               }}
             >
               Changer la catégorie
+            </button>
+            <button
+              onClick={bulkPublish}
+              style={{
+                padding: "6px 14px", borderRadius: 7, border: "none",
+                background: "#16a34a", color: "#fff",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Publier
             </button>
             <button
               onClick={bulkDelete}
