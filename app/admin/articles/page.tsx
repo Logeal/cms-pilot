@@ -123,12 +123,12 @@ export default function ArticlesPage() {
   async function bulkPublish() {
     await Promise.all([...selected].map(id =>
       fetch(`/api/articles/${id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+        body: JSON.stringify({ status: "published" }),
       })
     ));
-    setArticles(prev => prev.map(a => selected.has(a.id) ? { ...a, status: "published", publishedAt: new Date().toISOString() } : a));
+    setArticles(prev => prev.map(a => selected.has(a.id) ? { ...a, status: "published" } : a));
     setSelected(new Set());
   }
 
@@ -422,9 +422,9 @@ export default function ArticlesPage() {
                     {a.status !== "published" && (
                       <button onClick={async () => {
                         await fetch(`/api/articles/${a.id}`, {
-                          method: "PUT",
+                          method: "PATCH",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+                          body: JSON.stringify({ status: "published" }),
                         });
                         setArticles(prev => prev.map(x => x.id === a.id ? { ...x, status: "published", publishedAt: new Date().toISOString() } : x));
                       }} style={{

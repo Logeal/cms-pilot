@@ -14,6 +14,22 @@ export async function GET(
   return NextResponse.json(article);
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = await req.json();
+  const data: Record<string, unknown> = {};
+  if (body.status !== undefined) {
+    data.status = body.status;
+    data.publishedAt = body.status === "published" ? new Date() : null;
+  }
+  if (body.category !== undefined) data.category = body.category;
+  const article = await prisma.article.update({ where: { id }, data });
+  return NextResponse.json(article);
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
