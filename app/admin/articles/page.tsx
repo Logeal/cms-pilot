@@ -419,6 +419,22 @@ export default function ArticlesPage() {
                 </td>
                 <td style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    {a.status !== "published" && (
+                      <button onClick={async () => {
+                        await fetch(`/api/articles/${a.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "published", publishedAt: new Date().toISOString() }),
+                        });
+                        setArticles(prev => prev.map(x => x.id === a.id ? { ...x, status: "published", publishedAt: new Date().toISOString() } : x));
+                      }} style={{
+                        padding: "4px 10px", borderRadius: 6, background: "#16a34a",
+                        border: "none", color: "#fff",
+                        fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      }}>
+                        Publier
+                      </button>
+                    )}
                     <Link href={`/admin/articles/${a.id}`} style={{
                       padding: "4px 10px", borderRadius: 6, background: "var(--bg-tertiary)",
                       border: "1px solid var(--border)", color: "var(--text-secondary)",
