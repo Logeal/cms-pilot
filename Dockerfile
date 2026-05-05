@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
+ENV DATABASE_URL="file:/tmp/dummy.db"
 RUN npx prisma generate --schema=prisma/schema.prisma
 
 FROM node:20-alpine AS builder
