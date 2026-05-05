@@ -52,6 +52,10 @@ export default function ArticlesPage() {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // Pagination
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+
   // Modal création
   const [showModal, setShowModal]   = useState(false);
   const [newTitle, setNewTitle]     = useState("");
@@ -186,6 +190,9 @@ export default function ArticlesPage() {
       return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
     });
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const activeFilters = [statusFilter !== "all", categoryFilter !== "all", siteFilter !== "all"].filter(Boolean).length;
 
   function SortIcon({ col }: { col: SortKey }) {
@@ -225,7 +232,7 @@ export default function ArticlesPage() {
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
           placeholder="Rechercher…"
           style={{
             flex: "1 1 200px", maxWidth: 320, padding: "8px 12px", borderRadius: 8,
@@ -233,26 +240,26 @@ export default function ArticlesPage() {
             color: "var(--text-primary)", fontSize: 13, outline: "none",
           }}
         />
-        <Select value={statusFilter} onChange={setStatusFilter}>
+        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }}>
           <option value="all">Tous les statuts</option>
           <option value="draft">Brouillon</option>
           <option value="published">Publié</option>
           <option value="scheduled">Planifié</option>
         </Select>
-        <Select value={categoryFilter} onChange={setCategoryFilter}>
+        <Select value={categoryFilter} onChange={v => { setCategoryFilter(v); setPage(1); }}>
           <option value="all">Toutes catégories</option>
           <option value="">Sans catégorie</option>
           {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
         </Select>
         {uniqueSites.length > 1 && (
-          <Select value={siteFilter} onChange={setSiteFilter}>
+          <Select value={siteFilter} onChange={v => { setSiteFilter(v); setPage(1); }}>
             <option value="all">Tous les sites</option>
             {uniqueSites.map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
         )}
         {activeFilters > 0 && (
           <button
-            onClick={() => { setStatusFilter("all"); setCategoryFilter("all"); setSiteFilter("all"); setSearch(""); }}
+            onClick={() => { setStatusFilter("all"); setCategoryFilter("all"); setSiteFilter("all"); setSearch(""); setPage(1); }}
             style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}
           >
             Réinitialiser
@@ -363,7 +370,7 @@ export default function ArticlesPage() {
               <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Aucun article trouvé</td></tr>
-            ) : filtered.map(a => (
+            ) : paginated.map(a => (
               <tr
                 key={a.id}
                 style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s", background: selected.has(a.id) ? "var(--accent-bg)" : undefined }}
@@ -456,6 +463,61 @@ export default function ArticlesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} sur {filtered.length} articles
+          </span>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                color: page === 1 ? "var(--text-muted)" : "var(--text-primary)",
+                cursor: page === 1 ? "default" : "pointer", opacity: page === 1 ? 0.4 : 1,
+              }}
+            >← Précédent</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "..." ? (
+                  <span key={`d${i}`} style={{ padding: "6px 4px", fontSize: 12, color: "var(--text-muted)" }}>…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p as number)}
+                    style={{
+                      width: 32, height: 32, borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: page === p ? "var(--accent)" : "var(--bg-secondary)",
+                      border: `1px solid ${page === p ? "var(--accent)" : "var(--border)"}`,
+                      color: page === p ? "#fff" : "var(--text-primary)",
+                      cursor: "pointer",
+                    }}
+                  >{p}</button>
+                )
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                color: page === totalPages ? "var(--text-muted)" : "var(--text-primary)",
+                cursor: page === totalPages ? "default" : "pointer", opacity: page === totalPages ? 0.4 : 1,
+              }}
+            >Suivant →</button>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         open={confirmDelete !== null}
