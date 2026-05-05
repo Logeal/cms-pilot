@@ -36,6 +36,8 @@ export default async function RootLayout({
     <html lang="fr">
       <head>
         <link rel="icon" href={faviconHref} type={faviconType} />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href={faviconHref} />
       </head>
       <body style={{ minHeight: "100vh", margin: 0 }}>{children}</body>
     </html>
