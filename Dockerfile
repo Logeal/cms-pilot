@@ -3,6 +3,7 @@ RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
+COPY prisma.config.ts ./prisma.config.ts
 RUN npm ci
 ENV DATABASE_URL="file:/tmp/dummy.db"
 RUN npx prisma generate --schema=prisma/schema.prisma
