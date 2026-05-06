@@ -53,6 +53,8 @@ export default function ParametresPage() {
 
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
+  const [paletteColors, setPaletteColors] = useState<Record<string, string> | null>(null);
+  const [faviconColor, setFaviconColor] = useState<string>("#C4603A");
 
   // Logo builder typographique
   const [logoPart1, setLogoPart1] = useState("Maison");
@@ -177,12 +179,22 @@ export default function ParametresPage() {
     setLogoUrl(site.logoUrl ?? "");
     setFaviconUrl(site.faviconUrl ?? "");
     let mc: MenuConfig | null = null;
+    let mcRaw: Record<string, unknown> | null = null;
     const raw = site.menuConfig;
     if (typeof raw === "string") {
-      try { mc = JSON.parse(raw); } catch { mc = null; }
+      try { mcRaw = JSON.parse(raw) as Record<string, unknown>; mc = mcRaw as unknown as MenuConfig; } catch { mc = null; }
     } else if (raw && typeof raw === "object") {
       mc = raw as MenuConfig;
+      mcRaw = raw as unknown as Record<string, unknown>;
     }
+    let colors: Record<string, string> | null = null;
+    const setup = mcRaw?.setup;
+    if (setup) {
+      const setupObj = typeof setup === "string" ? JSON.parse(setup) : setup;
+      colors = (setupObj?.colors ?? null) as Record<string, string> | null;
+    }
+    setPaletteColors(colors);
+    if (colors?.accent) setFaviconColor(colors.accent);
     const items = (mc?.items ?? []).map((i: MenuItem) => ({ ...i, level: i.level ?? 0 }));
     setMenuConfig({ showLogo: mc?.showLogo ?? true, items });
   }, [selectedSiteId, sites]);
@@ -540,12 +552,33 @@ export default function ParametresPage() {
     setIsDirty(true);
   }
 
-  function generateFaviconFromLogo() {
+  function isLightColor(hex: string): boolean {
+    const c = hex.replace("#", "");
+    if (c.length !== 6) return false;
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+  }
+
+  function buildFaviconSvg(bgColor: string): string {
     const letter = (logoPart1 || "M").charAt(0).toUpperCase();
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" fill="#C4603A" rx="10"/><text x="32" y="46" font-family="Georgia, serif" font-size="40" font-weight="700" fill="#fff" text-anchor="middle">${letter}</text></svg>`;
+    const textColor = isLightColor(bgColor) ? "#1C1C1A" : "#ffffff";
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" fill="${bgColor}" rx="10"/><text x="32" y="46" font-family="Georgia, serif" font-size="40" font-weight="700" fill="${textColor}" text-anchor="middle">${letter}</text></svg>`;
+  }
+
+  function generateFaviconFromLogo() {
+    const svg = buildFaviconSvg(faviconColor);
     const b64 = btoa(unescape(encodeURIComponent(svg)));
-    const dataUrl = `data:image/svg+xml;base64,${b64}`;
-    setFaviconUrl(dataUrl);
+    setFaviconUrl(`data:image/svg+xml;base64,${b64}`);
+    setIsDirty(true);
+  }
+
+  function pickFaviconColor(color: string) {
+    setFaviconColor(color);
+    const svg = buildFaviconSvg(color);
+    const b64 = btoa(unescape(encodeURIComponent(svg)));
+    setFaviconUrl(`data:image/svg+xml;base64,${b64}`);
     setIsDirty(true);
   }
 
@@ -711,6 +744,40 @@ export default function ParametresPage() {
             {/* Aperçu live */}
             <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--bg-tertiary)", border: "1px solid var(--border)", marginBottom: 12, minHeight: 64, display: "flex", alignItems: "center" }}>
               <span dangerouslySetInnerHTML={{ __html: buildLogoSvg() }} />
+            </div>
+            {/* Sélecteur couleur favicon depuis la palette du site */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
+                Couleur du favicon{paletteColors ? "" : " (palette par défaut — configure une palette dans Setup pour des couleurs sur-mesure)"}
+              </label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {(["dark", "brand", "brandLight", "accent", "secondary", "mid"] as const).map(key => {
+                  const c = paletteColors?.[key];
+                  if (!c) return null;
+                  const selected = faviconColor.toLowerCase() === c.toLowerCase();
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => pickFaviconColor(c)}
+                      title={`${key} · ${c}`}
+                      style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: c,
+                        border: selected ? "2px solid var(--text-primary)" : "1px solid var(--border)",
+                        cursor: "pointer", padding: 0,
+                        boxShadow: selected ? "0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--accent)" : "none",
+                      }}
+                    />
+                  );
+                })}
+                <input
+                  type="color"
+                  value={faviconColor}
+                  onChange={e => pickFaviconColor(e.target.value)}
+                  title="Couleur personnalisée"
+                  style={{ width: 28, height: 28, border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", padding: 0, background: "transparent" }}
+                />
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={applyLogoSvg} style={{ ...btnPrimary, fontSize: 12 }}>Utiliser ce logo</button>
