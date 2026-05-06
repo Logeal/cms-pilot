@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
+import { findPublishedConflict } from "@/lib/duplicates";
 
 const PRIVATE_IP = /^(https?:\/\/)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/i;
 
@@ -75,6 +76,19 @@ export async function POST(req: NextRequest) {
     ? await mirrorImage(imageUrl)
     : imageUrl ?? null;
 
+  const existing = await prisma.article.findUnique({
+    where: { siteId_slug: { siteId: site.id, slug } },
+    select: { id: true },
+  });
+
+  // If another already-published article in this site has the same title,
+  // refuse to publish this one — flag it as a duplicate instead.
+  const conflictId = await findPublishedConflict(site.id, title, existing?.id);
+  let resolvedStatus = status ?? "draft";
+  if (conflictId && resolvedStatus === "published") {
+    resolvedStatus = "duplicate";
+  }
+
   const article = await prisma.article.upsert({
     where: { siteId_slug: { siteId: site.id, slug } },
     update: {
@@ -83,11 +97,11 @@ export async function POST(req: NextRequest) {
       metaTitle:       metaTitle ?? null,
       metaDescription: metaDescription ?? null,
       category:        category ?? null,
-      status:          status ?? "draft",
+      status:          resolvedStatus,
       imageUrl:        localImageUrl,
       subject:         subject ?? null,
       keyword:         keyword ?? null,
-      publishedAt:     status === "published" ? new Date() : null,
+      publishedAt:     resolvedStatus === "published" ? new Date() : null,
     },
     create: {
       siteId: site.id,
@@ -97,11 +111,11 @@ export async function POST(req: NextRequest) {
       metaTitle:       metaTitle ?? null,
       metaDescription: metaDescription ?? null,
       category:        category ?? null,
-      status:          status ?? "draft",
+      status:          resolvedStatus,
       imageUrl:        localImageUrl,
       subject:         subject ?? null,
       keyword:         keyword ?? null,
-      publishedAt:     status === "published" ? new Date() : null,
+      publishedAt:     resolvedStatus === "published" ? new Date() : null,
     },
   });
 

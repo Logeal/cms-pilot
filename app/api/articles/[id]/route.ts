@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { findPublishedConflict } from "@/lib/duplicates";
 
 export async function GET(
   _req: NextRequest,
@@ -21,7 +22,23 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
   const data: Record<string, unknown> = {};
+
   if (body.status !== undefined) {
+    if (body.status === "published") {
+      const current = await prisma.article.findUnique({
+        where: { id },
+        select: { siteId: true, title: true },
+      });
+      if (current) {
+        const conflictId = await findPublishedConflict(current.siteId, current.title, id);
+        if (conflictId) {
+          return NextResponse.json(
+            { error: "duplicate", message: "Un article publié porte déjà ce titre.", conflictId },
+            { status: 409 },
+          );
+        }
+      }
+    }
     data.status = body.status;
     data.publishedAt = body.status === "published" ? new Date() : null;
   }
@@ -36,6 +53,24 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await req.json();
+
+  let resolvedStatus = body.status as string;
+  if (resolvedStatus === "published") {
+    const current = await prisma.article.findUnique({
+      where: { id },
+      select: { siteId: true },
+    });
+    if (current) {
+      const conflictId = await findPublishedConflict(current.siteId, body.title, id);
+      if (conflictId) {
+        return NextResponse.json(
+          { error: "duplicate", message: "Un article publié porte déjà ce titre.", conflictId },
+          { status: 409 },
+        );
+      }
+    }
+  }
+
   const article = await prisma.article.update({
     where: { id },
     data: {
@@ -45,9 +80,9 @@ export async function PUT(
       metaTitle:       body.metaTitle ?? null,
       metaDescription: body.metaDescription ?? null,
       category:        body.category ?? null,
-      status:          body.status,
+      status:          resolvedStatus,
       imageUrl:        body.imageUrl ?? null,
-      publishedAt:     body.status === "published" ? (body.publishedAt ? new Date(body.publishedAt) : new Date()) : null,
+      publishedAt:     resolvedStatus === "published" ? (body.publishedAt ? new Date(body.publishedAt) : new Date()) : null,
       subject:         body.subject ?? null,
       keyword:         body.keyword ?? null,
       tone:            body.tone ?? null,

@@ -25,13 +25,29 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Brouillon",
   published: "Publié",
   scheduled: "Planifié",
+  duplicate: "Problème doublon",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "badge badge-draft",
   published: "badge badge-published",
   scheduled: "badge badge-scheduled",
+  duplicate: "badge badge-duplicate",
 };
+
+interface DuplicateGroup {
+  key: string;
+  reason: "title" | "slug";
+  articles: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    status: string;
+    createdAt: string;
+    publishedAt: string | null;
+    site: { name: string; url: string };
+  }>;
+}
 
 type SortKey = "title" | "site" | "category" | "status" | "createdAt";
 type SortDir = "asc" | "desc";
@@ -68,6 +84,13 @@ export default function ArticlesPage() {
   // Confirm suppression
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // article id
 
+  // Duplicates
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+  const [resolvingDuplicates, setResolvingDuplicates] = useState(false);
+  const [confirmAutoFix, setConfirmAutoFix] = useState(false);
+
   // Selection + inline category edit
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
@@ -92,6 +115,36 @@ export default function ArticlesPage() {
 
   async function deleteArticle(id: string) {
     await fetch(`/api/articles/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  async function openDuplicates() {
+    setShowDuplicates(true);
+    setLoadingDuplicates(true);
+    const res = await fetch("/api/admin/articles/duplicates");
+    const data = await res.json();
+    setDuplicateGroups(data.groups ?? []);
+    setLoadingDuplicates(false);
+  }
+
+  async function autoFixDuplicates() {
+    setResolvingDuplicates(true);
+    await fetch("/api/admin/articles/duplicates", { method: "POST" });
+    setResolvingDuplicates(false);
+    setConfirmAutoFix(false);
+    const res = await fetch("/api/admin/articles/duplicates");
+    const data = await res.json();
+    setDuplicateGroups(data.groups ?? []);
+    load();
+  }
+
+  async function deleteFromGroup(id: string) {
+    await fetch(`/api/articles/${id}`, { method: "DELETE" });
+    setDuplicateGroups(prev =>
+      prev
+        .map(g => ({ ...g, articles: g.articles.filter(a => a.id !== id) }))
+        .filter(g => g.articles.length > 1),
+    );
     load();
   }
 
@@ -212,20 +265,38 @@ export default function ArticlesPage() {
             {activeFilters > 0 && <span style={{ marginLeft: 6, color: "var(--accent-light)" }}>({activeFilters} filtre{activeFilters > 1 ? "s" : ""})</span>}
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            display: "flex", alignItems: "center", gap: 7,
-            padding: "9px 18px", borderRadius: 8, border: "none",
-            background: "var(--accent)", color: "#fff",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Nouvel article
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={openDuplicates}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "9px 14px", borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--bg-secondary)", color: "var(--text-secondary)",
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Doublons
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "9px 18px", borderRadius: 8, border: "none",
+              background: "var(--accent)", color: "#fff",
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Nouvel article
+          </button>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -245,6 +316,7 @@ export default function ArticlesPage() {
           <option value="draft">Brouillon</option>
           <option value="published">Publié</option>
           <option value="scheduled">Planifié</option>
+          <option value="duplicate">Problème doublon</option>
         </Select>
         <Select value={categoryFilter} onChange={v => { setCategoryFilter(v); setPage(1); }}>
           <option value="all">Toutes catégories</option>
@@ -426,14 +498,19 @@ export default function ArticlesPage() {
                 </td>
                 <td style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    {a.status !== "published" && (
+                    {a.status !== "published" && a.status !== "duplicate" && (
                       <button onClick={async () => {
-                        await fetch(`/api/articles/${a.id}`, {
+                        const res = await fetch(`/api/articles/${a.id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ status: "published" }),
                         });
-                        setArticles(prev => prev.map(x => x.id === a.id ? { ...x, status: "published", publishedAt: new Date().toISOString() } : x));
+                        if (res.status === 409) {
+                          alert("Un article publié porte déjà ce titre — publication bloquée.");
+                          setArticles(prev => prev.map(x => x.id === a.id ? { ...x, status: "duplicate" } : x));
+                          return;
+                        }
+                        setArticles(prev => prev.map(x => x.id === a.id ? { ...x, status: "published" } : x));
                       }} style={{
                         padding: "4px 10px", borderRadius: 6, background: "#16a34a",
                         border: "none", color: "#fff",
@@ -527,6 +604,131 @@ export default function ArticlesPage() {
         onConfirm={() => { if (confirmDelete) deleteArticle(confirmDelete); setConfirmDelete(null); }}
         onCancel={() => setConfirmDelete(null)}
       />
+
+      <ConfirmModal
+        open={confirmAutoFix}
+        title="Auto-corriger les doublons"
+        message={`${duplicateGroups.length} groupe${duplicateGroups.length > 1 ? "s" : ""} de doublons. Pour chaque groupe, on garde l'article publié (ou le plus ancien si tous ont le même statut) et on supprime les autres. Action irréversible.`}
+        confirmLabel="Auto-corriger"
+        onConfirm={autoFixDuplicates}
+        onCancel={() => setConfirmAutoFix(false)}
+      />
+
+      {/* Duplicates modal */}
+      {showDuplicates && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDuplicates(false); }}
+        >
+          <div style={{
+            background: "var(--bg-primary)", border: "1px solid var(--border)",
+            borderRadius: 14, width: "100%", maxWidth: 820, maxHeight: "85vh",
+            display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Articles en doublon</h2>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0" }}>
+                  Détection par titre normalisé ou slug identique (au sein d'un même site).
+                </p>
+              </div>
+              <button onClick={() => setShowDuplicates(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+              {loadingDuplicates ? (
+                <p style={{ textAlign: "center", color: "var(--text-muted)", padding: 40 }}>Analyse en cours…</p>
+              ) : duplicateGroups.length === 0 ? (
+                <p style={{ textAlign: "center", color: "var(--text-muted)", padding: 40 }}>
+                  Aucun doublon détecté.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {duplicateGroups.map((g, gi) => (
+                    <div key={gi} style={{
+                      border: "1px solid var(--border)", borderRadius: 10,
+                      background: "var(--bg-secondary)", overflow: "hidden",
+                    }}>
+                      <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 14px", borderBottom: "1px solid var(--border)",
+                        background: "var(--bg-tertiary)",
+                      }}>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                          {g.reason === "title" ? "Même titre" : "Même slug"} · {g.articles.length} articles
+                        </span>
+                      </div>
+                      {g.articles.map(a => (
+                        <div key={a.id} style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "10px 14px", borderTop: "1px solid var(--border)", gap: 12,
+                        }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
+                              {a.title}
+                            </Link>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                              /{a.slug} · {new Date(a.createdAt).toLocaleDateString("fr-FR")}
+                            </div>
+                          </div>
+                          <span className={STATUS_COLORS[a.status] ?? "badge badge-draft"}>
+                            {STATUS_LABELS[a.status] ?? a.status}
+                          </span>
+                          <button
+                            onClick={() => deleteFromGroup(a.id)}
+                            style={{
+                              padding: "4px 10px", borderRadius: 6, background: "none",
+                              border: "1px solid var(--danger)", color: "var(--danger)",
+                              fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
+                            }}
+                          >
+                            Suppr.
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 24px", borderTop: "1px solid var(--border)" }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {duplicateGroups.length === 0
+                  ? "—"
+                  : `${duplicateGroups.length} groupe${duplicateGroups.length > 1 ? "s" : ""} · ${duplicateGroups.reduce((n, g) => n + g.articles.length - 1, 0)} suppression${duplicateGroups.reduce((n, g) => n + g.articles.length - 1, 0) > 1 ? "s" : ""} prévue${duplicateGroups.reduce((n, g) => n + g.articles.length - 1, 0) > 1 ? "s" : ""}`}
+              </span>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowDuplicates(false)}
+                  style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", fontSize: 13, cursor: "pointer" }}
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={() => setConfirmAutoFix(true)}
+                  disabled={duplicateGroups.length === 0 || resolvingDuplicates}
+                  style={{
+                    padding: "9px 18px", borderRadius: 8, border: "none",
+                    background: duplicateGroups.length === 0 ? "var(--border)" : "var(--accent)",
+                    color: duplicateGroups.length === 0 ? "var(--text-muted)" : "#fff",
+                    fontSize: 13, fontWeight: 600,
+                    cursor: duplicateGroups.length === 0 ? "default" : "pointer",
+                  }}
+                >
+                  {resolvingDuplicates ? "Suppression…" : "Auto-corriger les doublons"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal création */}
       {showModal && (
