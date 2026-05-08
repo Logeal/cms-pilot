@@ -194,7 +194,22 @@ export default function ParametresPage() {
       colors = (setupObj?.colors ?? null) as Record<string, string> | null;
     }
     setPaletteColors(colors);
-    if (colors?.accent) setFaviconColor(colors.accent);
+
+    // Restore logoBuilder fields (typographic logo generator inputs)
+    const lb = mcRaw?.logoBuilder as Record<string, unknown> | undefined;
+    if (lb) {
+      if (typeof lb.part1 === "string") setLogoPart1(lb.part1);
+      if (typeof lb.part2 === "string") setLogoPart2(lb.part2);
+      if (typeof lb.separator === "string") setLogoSeparator(lb.separator);
+      if (typeof lb.slogan === "string") setLogoSlogan(lb.slogan);
+      if (typeof lb.part1Bold === "boolean") setLogoPart1Bold(lb.part1Bold);
+      if (typeof lb.part2Bold === "boolean") setLogoPart2Bold(lb.part2Bold);
+      if (typeof lb.faviconColor === "string") setFaviconColor(lb.faviconColor);
+      else if (colors?.accent) setFaviconColor(colors.accent);
+    } else if (colors?.accent) {
+      setFaviconColor(colors.accent);
+    }
+
     const items = (mc?.items ?? []).map((i: MenuItem) => ({ ...i, level: i.level ?? 0 }));
     setMenuConfig({ showLogo: mc?.showLogo ?? true, items });
   }, [selectedSiteId, sites]);
@@ -230,6 +245,16 @@ export default function ParametresPage() {
     const derivedName = logoPart1 && logoPart2
       ? [logoPart1, sep, logoPart2].filter(Boolean).join("")
       : site.name;
+    const logoBuilder = {
+      part1: logoPart1,
+      part2: logoPart2,
+      separator: logoSeparator,
+      slogan: logoSlogan,
+      part1Bold: logoPart1Bold,
+      part2Bold: logoPart2Bold,
+      faviconColor,
+    };
+    const menuConfigToSave = { ...menuConfig, logoBuilder };
     try {
       const res = await fetch(`/api/sites/${selectedSiteId}`, {
         method: "PUT",
@@ -239,7 +264,7 @@ export default function ParametresPage() {
           url: site.url,
           logoUrl: logoUrl || null,
           faviconUrl: faviconUrl || null,
-          menuConfig,
+          menuConfig: menuConfigToSave,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -248,7 +273,7 @@ export default function ParametresPage() {
       setSites((prev) =>
         prev.map((s) =>
           s.id === selectedSiteId
-            ? { ...s, name: derivedName, logoUrl: logoUrl || null, faviconUrl: faviconUrl || null, menuConfig }
+            ? { ...s, name: derivedName, logoUrl: logoUrl || null, faviconUrl: faviconUrl || null, menuConfig: menuConfigToSave as unknown as MenuConfig }
             : s
         )
       );

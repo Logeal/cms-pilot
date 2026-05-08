@@ -18,9 +18,28 @@ export async function PUT(
     if (logoUrl !== undefined) data.logoUrl = logoUrl;
     if (faviconUrl !== undefined) data.faviconUrl = faviconUrl;
 
-    // Stocker menuConfig comme string JSON pour éviter les problèmes Prisma/SQLite
+    // menuConfig is stored as JSON string. We MERGE rather than replace so a
+    // partial update (e.g. {showLogo, items} from Paramètres) doesn't wipe
+    // unrelated branches like `setup` (palette/theme) written by Setup.
     if (menuConfig !== undefined) {
-      data.menuConfig = typeof menuConfig === "string" ? menuConfig : JSON.stringify(menuConfig);
+      const incoming = typeof menuConfig === "string"
+        ? JSON.parse(menuConfig) as Record<string, unknown>
+        : menuConfig as Record<string, unknown>;
+      const current = await prisma.site.findUnique({
+        where: { id },
+        select: { menuConfig: true },
+      });
+      let existing: Record<string, unknown> = {};
+      const raw = current?.menuConfig;
+      if (raw) {
+        if (typeof raw === "string") {
+          try { existing = JSON.parse(raw); } catch { existing = {}; }
+        } else if (typeof raw === "object") {
+          existing = raw as Record<string, unknown>;
+        }
+      }
+      const merged = { ...existing, ...incoming };
+      data.menuConfig = JSON.stringify(merged);
     }
 
     const site = await prisma.site.update({ where: { id }, data });
