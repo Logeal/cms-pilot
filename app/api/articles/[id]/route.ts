@@ -59,6 +59,10 @@ export async function PATCH(
     data.status = body.status;
   }
   if (body.category !== undefined) data.category = body.category;
+  if (body.imageUrl !== undefined) {
+    const url = typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
+    data.imageUrl = url || null;
+  }
   const article = await prisma.article.update({ where: { id }, data });
   return NextResponse.json(article);
 }
