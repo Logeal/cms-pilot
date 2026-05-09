@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { findPublishedConflict } from "@/lib/duplicates";
 
 // Called by a VPS cron every 15 min: GET /api/cron/auto-publish?secret=CRON_SECRET
 export async function GET(req: NextRequest) {
@@ -53,22 +54,36 @@ export async function GET(req: NextRequest) {
     targetCategory = config.categoryOrder[nextCategoryIndex % config.categoryOrder.length];
   }
 
-  const article = await prisma.article.findFirst({
-    where: {
-      siteId: site.id,
-      status: "draft",
-      ...(targetCategory ? { category: targetCategory } : {}),
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  // Find a draft to publish that isn't a duplicate of an already-published one.
+  // Iterate up to 50 candidates; flag any duplicates we find along the way.
+  async function findPublishable(category: string | null) {
+    const candidates = await prisma.article.findMany({
+      where: {
+        siteId: site!.id,
+        status: "draft",
+        ...(category ? { category } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+    });
+    for (const c of candidates) {
+      const conflictId = await findPublishedConflict(site!.id, c.title, c.id);
+      if (conflictId) {
+        await prisma.article.update({ where: { id: c.id }, data: { status: "duplicate" } });
+        continue;
+      }
+      return c;
+    }
+    return null;
+  }
 
-  const articleToPublish = article ?? (targetCategory ? await prisma.article.findFirst({
-    where: { siteId: site.id, status: "draft" },
-    orderBy: { createdAt: "asc" },
-  }) : null);
+  let articleToPublish = await findPublishable(targetCategory);
+  if (!articleToPublish && targetCategory) {
+    articleToPublish = await findPublishable(null);
+  }
 
   if (!articleToPublish) {
-    return NextResponse.json({ skipped: true, reason: "No draft articles" });
+    return NextResponse.json({ skipped: true, reason: "No publishable draft (all conflict with existing published articles)" });
   }
 
   await prisma.article.update({

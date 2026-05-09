@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
-
-function toSlug(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { toSlug, isValidStatus } from "@/lib/slug";
+import { findPublishedConflict } from "@/lib/duplicates";
 
 export async function POST(req: NextRequest) {
   const denied = await requireAuth();
@@ -24,11 +17,17 @@ export async function POST(req: NextRequest) {
   if (!title?.trim()) {
     return NextResponse.json({ error: "title required" }, { status: 400 });
   }
+  if (status !== undefined && !isValidStatus(status)) {
+    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
 
   const site = await prisma.site.findFirst();
   if (!site) return NextResponse.json({ error: "No site" }, { status: 404 });
 
   const baseSlug = toSlug(title.trim());
+  if (!baseSlug) {
+    return NextResponse.json({ error: "title has no slug-able characters" }, { status: 400 });
+  }
   // Ensure slug uniqueness
   const existing = await prisma.article.findMany({
     where: { siteId: site.id, slug: { startsWith: baseSlug } },
@@ -39,6 +38,13 @@ export async function POST(req: NextRequest) {
   let i = 2;
   while (slugs.has(slug)) { slug = `${baseSlug}-${i++}`; }
 
+  // If creating directly as published, refuse if a duplicate exists.
+  let resolvedStatus = status ?? "draft";
+  if (resolvedStatus === "published") {
+    const conflictId = await findPublishedConflict(site.id, title.trim());
+    if (conflictId) resolvedStatus = "duplicate";
+  }
+
   const article = await prisma.article.create({
     data: {
       siteId:   site.id,
@@ -46,7 +52,8 @@ export async function POST(req: NextRequest) {
       slug,
       content:  "",
       category: category ?? null,
-      status:   status ?? "draft",
+      status:   resolvedStatus,
+      publishedAt: resolvedStatus === "published" ? new Date() : null,
     },
   });
 

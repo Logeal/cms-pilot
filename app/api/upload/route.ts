@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { requireAuth } from "@/lib/requireAuth";
+
+const TYPE_TO_EXT: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/gif": ".gif",
+  "image/svg+xml": ".svg",
+  "image/webp": ".webp",
+  "image/x-icon": ".ico",
+  "image/vnd.microsoft.icon": ".ico",
+};
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
 
@@ -10,8 +25,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Aucun fichier fourni" }, { status: 400 });
   }
 
-  const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/svg+xml", "image/webp", "image/x-icon", "image/vnd.microsoft.icon"];
-  if (!allowedTypes.includes(file.type)) {
+  const ext = TYPE_TO_EXT[file.type];
+  if (!ext) {
     return NextResponse.json({ error: "Type de fichier non autorisé" }, { status: 400 });
   }
 
@@ -23,7 +38,6 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  const ext = path.extname(file.name) || ".png";
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
   const uploadsDir = path.join(process.cwd(), "public", "uploads");
 

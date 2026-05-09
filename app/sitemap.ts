@@ -1,11 +1,8 @@
 import { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { toSlug } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
-
-function catToSlug(cat: string) {
-  return cat.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
-}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = await prisma.site.findFirst();
@@ -39,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const articlePages: MetadataRoute.Sitemap = articles.map((article) => ({
     url: article.category
-      ? `${baseUrl}/${catToSlug(article.category)}/${article.slug}`
+      ? `${baseUrl}/${toSlug(article.category)}/${article.slug}`
       : `${baseUrl}/${article.slug}`,
     lastModified: article.updatedAt,
     changeFrequency: "monthly" as const,

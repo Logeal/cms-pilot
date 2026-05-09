@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await params;
   try {
     const body = await req.json();
     const { name, url, categories, logoUrl, faviconUrl, menuConfig } = body;
 
-    const data: Record<string, unknown> = { name, url };
+    const data: Record<string, unknown> = {};
+    if (typeof name === "string" && name.trim()) data.name = name.trim();
+    if (typeof url === "string" && url.trim()) data.url = url.trim();
 
     // categories only if explicitly provided
     if (categories !== undefined) data.categories = categories;
@@ -54,6 +60,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
   const { id } = await params;
   await prisma.site.delete({ where: { id } });
   return NextResponse.json({ ok: true });

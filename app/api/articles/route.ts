@@ -3,6 +3,8 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { findPublishedConflict } from "@/lib/duplicates";
+import { requireAuth } from "@/lib/requireAuth";
+import { toSlug, isValidStatus } from "@/lib/slug";
 
 const PRIVATE_IP = /^(https?:\/\/)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/i;
 
@@ -47,6 +49,7 @@ export async function POST(req: NextRequest) {
     title?: string;
     slug?: string;
     content?: string;
+    introduction?: string;
     metaTitle?: string;
     metaDescription?: string;
     category?: string;
@@ -62,13 +65,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { title, slug, content, metaTitle, metaDescription, category, status, imageUrl, subject, keyword } = body;
+  const { title, slug: rawSlug, content, introduction, metaTitle, metaDescription, category, status, imageUrl, subject, keyword } = body;
 
-  if (!title || !slug || !content) {
+  if (!title || !rawSlug || !content) {
     return NextResponse.json(
       { error: "title, slug and content are required" },
       { status: 400 }
     );
+  }
+
+  if (status !== undefined && !isValidStatus(status)) {
+    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
+
+  const slug = toSlug(rawSlug);
+  if (!slug) {
+    return NextResponse.json({ error: "slug is empty after normalization" }, { status: 400 });
   }
 
   // Mirror external images locally so they don't disappear if the source dies
@@ -78,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.article.findUnique({
     where: { siteId_slug: { siteId: site.id, slug } },
-    select: { id: true },
+    select: { id: true, publishedAt: true },
   });
 
   // If another already-published article in this site has the same title,
@@ -89,11 +101,17 @@ export async function POST(req: NextRequest) {
     resolvedStatus = "duplicate";
   }
 
+  // Preserve original publishedAt if the article was already published.
+  const publishedAt = resolvedStatus === "published"
+    ? (existing?.publishedAt ?? new Date())
+    : null;
+
   const article = await prisma.article.upsert({
     where: { siteId_slug: { siteId: site.id, slug } },
     update: {
       title,
       content,
+      introduction:    introduction ?? null,
       metaTitle:       metaTitle ?? null,
       metaDescription: metaDescription ?? null,
       category:        category ?? null,
@@ -101,13 +119,14 @@ export async function POST(req: NextRequest) {
       imageUrl:        localImageUrl,
       subject:         subject ?? null,
       keyword:         keyword ?? null,
-      publishedAt:     resolvedStatus === "published" ? new Date() : null,
+      publishedAt,
     },
     create: {
       siteId: site.id,
       title,
       slug,
       content,
+      introduction:    introduction ?? null,
       metaTitle:       metaTitle ?? null,
       metaDescription: metaDescription ?? null,
       category:        category ?? null,
@@ -115,14 +134,13 @@ export async function POST(req: NextRequest) {
       imageUrl:        localImageUrl,
       subject:         subject ?? null,
       keyword:         keyword ?? null,
-      publishedAt:     resolvedStatus === "published" ? new Date() : null,
+      publishedAt,
     },
   });
 
   const baseUrl = site.url.replace(/\/$/, "");
-  const catSlug = (cat: string) => cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
   const articleUrl = article.category
-    ? `${baseUrl}/${catSlug(article.category)}/${article.slug}`
+    ? `${baseUrl}/${toSlug(article.category)}/${article.slug}`
     : `${baseUrl}/${article.slug}`;
   return NextResponse.json(
     { id: article.id, slug: article.slug, status: article.status, url: articleUrl },
@@ -132,6 +150,9 @@ export async function POST(req: NextRequest) {
 
 // GET /api/articles — admin list
 export async function GET(req: NextRequest) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { searchParams } = new URL(req.url);
   const siteId = searchParams.get("siteId");
 

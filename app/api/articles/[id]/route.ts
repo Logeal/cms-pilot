@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { findPublishedConflict } from "@/lib/duplicates";
+import { requireAuth } from "@/lib/requireAuth";
+import { toSlug, isValidStatus } from "@/lib/slug";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await params;
   const article = await prisma.article.findUnique({
     where: { id },
@@ -19,15 +24,21 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await params;
   const body = await req.json();
   const data: Record<string, unknown> = {};
 
   if (body.status !== undefined) {
+    if (!isValidStatus(body.status)) {
+      return NextResponse.json({ error: "invalid status" }, { status: 400 });
+    }
     if (body.status === "published") {
       const current = await prisma.article.findUnique({
         where: { id },
-        select: { siteId: true, title: true },
+        select: { siteId: true, title: true, publishedAt: true },
       });
       if (current) {
         const conflictId = await findPublishedConflict(current.siteId, current.title, id);
@@ -37,10 +48,15 @@ export async function PATCH(
             { status: 409 },
           );
         }
+        // Preserve original publication date if already published once.
+        data.publishedAt = current.publishedAt ?? new Date();
+      } else {
+        data.publishedAt = new Date();
       }
+    } else {
+      data.publishedAt = null;
     }
     data.status = body.status;
-    data.publishedAt = body.status === "published" ? new Date() : null;
   }
   if (body.category !== undefined) data.category = body.category;
   const article = await prisma.article.update({ where: { id }, data });
@@ -51,8 +67,15 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await params;
   const body = await req.json();
+
+  if (body.status !== undefined && !isValidStatus(body.status)) {
+    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
 
   let resolvedStatus = body.status as string;
   if (resolvedStatus === "published") {
@@ -71,23 +94,43 @@ export async function PUT(
     }
   }
 
+  const cleanSlug = typeof body.slug === "string" && body.slug.trim() ? toSlug(body.slug) : body.slug;
+
+  const wordCountRaw = Number(body.wordCount);
+  const wordCount = Number.isFinite(wordCountRaw) && wordCountRaw >= 0 ? Math.floor(wordCountRaw) : null;
+
+  // Preserve existing publishedAt when republishing an already-published article.
+  let publishedAt: Date | null = null;
+  if (resolvedStatus === "published") {
+    if (body.publishedAt) {
+      publishedAt = new Date(body.publishedAt);
+    } else {
+      const current = await prisma.article.findUnique({
+        where: { id },
+        select: { publishedAt: true },
+      });
+      publishedAt = current?.publishedAt ?? new Date();
+    }
+  }
+
   const article = await prisma.article.update({
     where: { id },
     data: {
       title:           body.title,
-      slug:            body.slug,
+      slug:            cleanSlug,
       content:         body.content,
+      introduction:    body.introduction ?? null,
       metaTitle:       body.metaTitle ?? null,
       metaDescription: body.metaDescription ?? null,
       category:        body.category ?? null,
       status:          resolvedStatus,
       imageUrl:        body.imageUrl ?? null,
-      publishedAt:     resolvedStatus === "published" ? (body.publishedAt ? new Date(body.publishedAt) : new Date()) : null,
+      publishedAt,
       subject:         body.subject ?? null,
       keyword:         body.keyword ?? null,
       tone:            body.tone ?? null,
       language:        body.language ?? "FR",
-      wordCount:       body.wordCount ? Number(body.wordCount) : null,
+      wordCount,
       generationLog:   body.generationLog ?? undefined,
     },
   });
@@ -98,6 +141,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
   const { id } = await params;
   await prisma.article.delete({ where: { id } });
   return NextResponse.json({ ok: true });

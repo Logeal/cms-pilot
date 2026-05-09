@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPalette } from "@/lib/palettes";
 import { parseJsonField } from "@/lib/parseJson";
+import { toSlug } from "@/lib/slug";
+import { requireAuth } from "@/lib/requireAuth";
 
 const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY ?? "";
 
@@ -30,11 +32,10 @@ async function fetchUniquePool(query: string, needed: number, usedUrls: Set<stri
   return pool;
 }
 
-function toSlug(str: string) {
-  return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 export async function POST(req: NextRequest) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { categories, paletteId } = await req.json() as { categories: string[]; paletteId: string };
   if (!categories?.length) return NextResponse.json({ error: "categories required" }, { status: 400 });
 

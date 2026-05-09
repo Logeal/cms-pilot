@@ -137,20 +137,10 @@ export default function ParametresPage() {
   useEffect(() => {
     loadSites();
     loadCategories();
-    // Charger statut auto-publish
+    // Draft count only — the auto-publish config is now read from the
+    // selected site's menuConfig in the per-site useEffect below.
     fetch("/api/admin/auto-publish").then((r) => r.json()).then((data) => {
       setApDraftCount(data.draftCount ?? 0);
-      if (data.config) {
-        const c = data.config;
-        setApEnabled(c.enabled ?? false);
-        setApIntervalValue(c.intervalValue ?? 1);
-        setApIntervalUnit(c.intervalUnit ?? "day");
-        setApCategoryRotation(c.categoryRotation ?? true);
-        setApCategoryOrder(c.categoryOrder ?? []);
-        setApNextPublishAt(c.nextPublishAt ?? null);
-        setApLastPublishedAt(c.lastPublishedAt ?? null);
-        setApNextCategoryIndex(c.nextCategoryIndex ?? 0);
-      }
     });
   }, []);
 
@@ -212,6 +202,19 @@ export default function ParametresPage() {
 
     const items = (mc?.items ?? []).map((i: MenuItem) => ({ ...i, level: i.level ?? 0 }));
     setMenuConfig({ showLogo: mc?.showLogo ?? true, items });
+
+    // Re-hydrate auto-publish config for the currently selected site so a
+    // user switching between sites doesn't accidentally overwrite one with
+    // another's settings on save.
+    const ap = mcRaw?.autoPublish as Record<string, unknown> | undefined;
+    setApEnabled(typeof ap?.enabled === "boolean" ? ap.enabled : false);
+    setApIntervalValue(typeof ap?.intervalValue === "number" ? ap.intervalValue : 1);
+    setApIntervalUnit((ap?.intervalUnit === "hour" || ap?.intervalUnit === "week" || ap?.intervalUnit === "day") ? ap.intervalUnit : "day");
+    setApCategoryRotation(typeof ap?.categoryRotation === "boolean" ? ap.categoryRotation : true);
+    setApCategoryOrder(Array.isArray(ap?.categoryOrder) ? ap.categoryOrder as string[] : []);
+    setApNextPublishAt(typeof ap?.nextPublishAt === "string" ? ap.nextPublishAt : null);
+    setApLastPublishedAt(typeof ap?.lastPublishedAt === "string" ? ap.lastPublishedAt : null);
+    setApNextCategoryIndex(typeof ap?.nextCategoryIndex === "number" ? ap.nextCategoryIndex : 0);
   }, [selectedSiteId, sites]);
 
   async function uploadFile(file: File): Promise<string | null> {
@@ -290,20 +293,42 @@ export default function ParametresPage() {
 
   async function saveAutoPublish() {
     if (!selectedSiteId) return;
-    // Récupère le menuConfig complet actuel depuis le serveur
-    const res = await fetch("/api/sites");
-    const sites2 = await res.json();
-    const site2 = sites2.find((s: Site) => s.id === selectedSiteId);
+    // Read the current auto-publish config from the selected site's stored
+    // menuConfig (we already have it in `sites`, no need to refetch).
+    const site2 = sites.find((s) => s.id === selectedSiteId);
     let mc: Record<string, unknown> = {};
-    try { mc = typeof site2?.menuConfig === "string" ? JSON.parse(site2.menuConfig) : (site2?.menuConfig ?? {}); } catch {}
+    try {
+      const raw = site2?.menuConfig;
+      if (typeof raw === "string") mc = JSON.parse(raw);
+      else if (raw && typeof raw === "object") mc = raw as unknown as Record<string, unknown>;
+    } catch {}
+    const previousAp = mc.autoPublish as Record<string, unknown> | undefined;
 
-    // Calcule la prochaine date de publication
     const intervalMs = apIntervalUnit === "hour"
       ? apIntervalValue * 60 * 60 * 1000
       : apIntervalUnit === "week"
       ? apIntervalValue * 7 * 24 * 60 * 60 * 1000
       : apIntervalValue * 24 * 60 * 60 * 1000;
-    const nextPublishAt = apEnabled ? new Date(Date.now() + intervalMs).toISOString() : null;
+
+    // Only recompute nextPublishAt when:
+    //   - we just turned auto-publish ON (no previous schedule)
+    //   - the interval (value or unit) changed (the previous schedule is stale)
+    //   - the previous nextPublishAt is missing or in the past
+    const wasEnabled = previousAp?.enabled === true;
+    const intervalChanged = previousAp?.intervalValue !== apIntervalValue
+      || previousAp?.intervalUnit !== apIntervalUnit;
+    const previousNext = typeof previousAp?.nextPublishAt === "string" ? previousAp.nextPublishAt : null;
+    const previousNextDate = previousNext ? new Date(previousNext) : null;
+    const previousNextValid = previousNextDate && previousNextDate.getTime() > Date.now();
+
+    let nextPublishAt: string | null;
+    if (!apEnabled) {
+      nextPublishAt = null;
+    } else if (!wasEnabled || intervalChanged || !previousNextValid) {
+      nextPublishAt = new Date(Date.now() + intervalMs).toISOString();
+    } else {
+      nextPublishAt = previousNext;
+    }
 
     const autoPublish = {
       enabled: apEnabled,
@@ -313,15 +338,20 @@ export default function ParametresPage() {
       categoryOrder: apCategoryOrder,
       nextCategoryIndex: apNextCategoryIndex,
       lastPublishedAt: apLastPublishedAt,
-      nextPublishAt: nextPublishAt ?? apNextPublishAt,
+      nextPublishAt,
     };
 
     await fetch(`/api/sites/${selectedSiteId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ menuConfig: { ...mc, autoPublish } }),
+      body: JSON.stringify({ menuConfig: { autoPublish } }),
     });
-    setApNextPublishAt(nextPublishAt ?? apNextPublishAt);
+    setApNextPublishAt(nextPublishAt);
+    // Refresh local sites array so the next save reads the updated previousAp.
+    setSites(prev => prev.map(s => s.id === selectedSiteId
+      ? { ...s, menuConfig: { ...mc, autoPublish } as unknown as Site["menuConfig"] }
+      : s));
+    skipSiteEffectRef.current = true;
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }

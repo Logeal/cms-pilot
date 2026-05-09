@@ -72,12 +72,17 @@ export default async function ArticlePage({ params }: { params: Params }) {
     where: { siteId: site.id, slug, status: "published" },
     select: {
       id: true, title: true, slug: true, content: true, metaTitle: true,
-      metaDescription: true, category: true, status: true, imageUrl: true,
+      metaDescription: true, introduction: true, category: true, status: true, imageUrl: true,
       imageAttribution: true, publishedAt: true, wordCount: true,
       subject: true, keyword: true, updatedAt: true,
     },
   });
   if (!article) notFound();
+
+  // Themes render `metaDescription` as the visible intro paragraph. We now
+  // have a dedicated `introduction` field — fall back to metaDescription so
+  // articles created before the split still display correctly.
+  const visibleIntro = article.introduction || article.metaDescription;
 
   const related = await prisma.article.findMany({
     where: { siteId: site.id, status: "published", category: article.category, NOT: { id: article.id } },
@@ -122,7 +127,13 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
   // Strip leading <h1> from content — the title is already rendered in the page header
   const cleanContent = article.content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, "");
-  const props = { category, article: { ...article, content: cleanContent }, related };
+  // Themes still read `metaDescription` for the visible intro paragraph; expose
+  // the introduction (or fallback) under that key without polluting SEO meta.
+  const props = {
+    category,
+    article: { ...article, content: cleanContent, metaDescription: visibleIntro },
+    related,
+  };
 
   const themeComponent = (() => {
     if (themeId === "theme-2") return <ArticlePageTheme2 {...props} />;

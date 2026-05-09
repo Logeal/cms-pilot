@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-function toSlug(str: string) {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { toSlug } from "@/lib/slug";
+import { requireAuth } from "@/lib/requireAuth";
 
 // GET /api/categories — used by Pilot & CMS editor
 export async function GET() {
@@ -32,6 +25,8 @@ export async function OPTIONS() {
 
 // POST /api/categories — create a new category
 export async function POST(req: NextRequest) {
+  const denied = await requireAuth();
+  if (denied) return denied;
   const { label, slug: customSlug } = await req.json();
   if (!label?.trim()) {
     return NextResponse.json({ error: "label is required" }, { status: 400 });

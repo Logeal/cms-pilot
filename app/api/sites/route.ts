@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
+import { requireAuth } from "@/lib/requireAuth";
 
 export async function GET() {
+  const denied = await requireAuth();
+  if (denied) return denied;
   const sites = await prisma.site.findMany({
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { articles: true } } },
@@ -11,6 +14,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAuth();
+  if (denied) return denied;
   const { name, url, categories } = await req.json();
   if (!name || !url) {
     return NextResponse.json({ error: "name and url are required" }, { status: 400 });

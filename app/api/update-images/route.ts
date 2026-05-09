@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
 const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY ?? "";
 
@@ -55,6 +56,9 @@ async function fetchUnsplashPool(query: string, needed: number): Promise<Unsplas
 }
 
 export async function GET() {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const site = await prisma.site.findFirst();
   if (!site) return NextResponse.json({ error: "No site found" }, { status: 404 });
 

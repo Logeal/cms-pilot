@@ -27,6 +27,7 @@ model Article {
   title           String
   slug            String
   content         String    @default("")
+  introduction    String?
   metaTitle       String?
   metaDescription String?
   category        String?

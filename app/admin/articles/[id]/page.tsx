@@ -10,6 +10,7 @@ interface Article {
   content: string;
   metaTitle: string | null;
   metaDescription: string | null;
+  introduction: string | null;
   category: string | null;
   status: string;
   imageUrl: string | null;
@@ -458,8 +459,8 @@ export default function ArticleEditor() {
           <Field label="Introduction">
             <textarea
               className="cms-input"
-              value={article.metaDescription ?? ""}
-              onChange={e => set("metaDescription", e.target.value || null)}
+              value={article.introduction ?? ""}
+              onChange={e => set("introduction", e.target.value || null)}
               rows={3}
               placeholder="Introduction de l'article (visible sous le titre)"
               style={{ resize: "vertical" }}
