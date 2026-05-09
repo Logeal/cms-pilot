@@ -133,6 +133,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
     category,
     article: { ...article, content: cleanContent, metaDescription: visibleIntro },
     related,
+    articleUrl: canonicalUrl,
   };
 
   const themeComponent = (() => {

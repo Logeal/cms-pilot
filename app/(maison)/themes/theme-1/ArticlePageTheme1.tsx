@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleAISummary } from "../_shared/ArticleAISummary";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "";
@@ -26,9 +27,10 @@ type Props = {
   category: string;
   article: Article;
   related: Article[];
+  articleUrl: string;
 };
 
-export function ArticlePageTheme1({ category, article, related }: Props) {
+export function ArticlePageTheme1({ category, article, related, articleUrl }: Props) {
   return (
     <>
       <div className="ms-art-header">
@@ -103,6 +105,9 @@ export function ArticlePageTheme1({ category, article, related }: Props) {
               </Link>
             </div>
           </aside>
+        </div>
+        <div className="ms-wrap">
+          <ArticleAISummary articleTitle={article.title} articleUrl={articleUrl} />
         </div>
       </div>
 

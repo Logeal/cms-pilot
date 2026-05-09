@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleAISummary } from "../_shared/ArticleAISummary";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "";
@@ -30,8 +31,9 @@ type Props = {
   category: string;
   article: Article;
   related: Article[];
+  articleUrl: string;
 };
-export function ArticlePageTheme2({ category, article, related }: Props) {
+export function ArticlePageTheme2({ category, article, related, articleUrl }: Props) {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -449,6 +451,7 @@ export function ArticlePageTheme2({ category, article, related }: Props) {
       <div className="t2a-body">
         <div className="t2a-body-inner">
           <div className="t2a-content" dangerouslySetInnerHTML={{ __html: article.content }} />
+          <ArticleAISummary articleTitle={article.title} articleUrl={articleUrl} />
         </div>
 
         <div className="t2a-expert">

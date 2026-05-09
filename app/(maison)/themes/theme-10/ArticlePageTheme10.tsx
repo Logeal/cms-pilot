@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleAISummary } from "../_shared/ArticleAISummary";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "";
@@ -21,8 +22,8 @@ type Article = {
   publishedAt: Date | null; wordCount: number | null;
 };
 
-type Props = { category: string; article: Article; related: Article[] };
-export function ArticlePageTheme10({ category, article, related }: Props) {
+type Props = { category: string; article: Article; related: Article[]; articleUrl: string };
+export function ArticlePageTheme10({ category, article, related, articleUrl }: Props) {
   const readTime = article.wordCount ? Math.ceil(article.wordCount / 200) : null;
 
   return (
@@ -171,6 +172,7 @@ export function ArticlePageTheme10({ category, article, related }: Props) {
         <div className="t10a-body-wrap">
           <div className="t10a-body-card">
             <div className="t10a-body" dangerouslySetInnerHTML={{ __html: article.content }} />
+            <ArticleAISummary articleTitle={article.title} articleUrl={articleUrl} />
           </div>
         </div>
 

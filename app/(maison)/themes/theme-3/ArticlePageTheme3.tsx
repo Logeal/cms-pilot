@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleAISummary } from "../_shared/ArticleAISummary";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "";
@@ -30,8 +31,9 @@ type Props = {
   category: string;
   article: Article;
   related: Article[];
+  articleUrl: string;
 };
-export function ArticlePageTheme3({ category, article, related }: Props) {
+export function ArticlePageTheme3({ category, article, related, articleUrl }: Props) {
   const readTime = article.wordCount ? Math.ceil(article.wordCount / 200) : null;
 
   return (
@@ -269,6 +271,7 @@ export function ArticlePageTheme3({ category, article, related }: Props) {
             className="t3a-content"
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
+          <ArticleAISummary articleTitle={article.title} articleUrl={articleUrl} />
         </div>
 
         {/* EXPERT BLOCK */}
