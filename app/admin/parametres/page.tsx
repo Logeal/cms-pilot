@@ -64,6 +64,11 @@ export default function ParametresPage() {
   const [logoPart1Bold, setLogoPart1Bold] = useState(true);
   const [logoPart2Bold, setLogoPart2Bold] = useState(true);
 
+  // SEO de la page d'accueil
+  const [homeMetaTitle, setHomeMetaTitle] = useState("");
+  const [homeMetaDescription, setHomeMetaDescription] = useState("");
+  const [generatingHomeSeo, setGeneratingHomeSeo] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -185,6 +190,11 @@ export default function ParametresPage() {
     }
     setPaletteColors(colors);
 
+    // Restore homeSeo fields (homepage meta title + description)
+    const hs = mcRaw?.homeSeo as Record<string, unknown> | undefined;
+    setHomeMetaTitle(typeof hs?.metaTitle === "string" ? hs.metaTitle : "");
+    setHomeMetaDescription(typeof hs?.metaDescription === "string" ? hs.metaDescription : "");
+
     // Restore logoBuilder fields (typographic logo generator inputs)
     const lb = mcRaw?.logoBuilder as Record<string, unknown> | undefined;
     if (lb) {
@@ -257,7 +267,11 @@ export default function ParametresPage() {
       part2Bold: logoPart2Bold,
       faviconColor,
     };
-    const menuConfigToSave = { ...menuConfig, logoBuilder };
+    const homeSeo = {
+      metaTitle: homeMetaTitle.trim(),
+      metaDescription: homeMetaDescription.trim(),
+    };
+    const menuConfigToSave = { ...menuConfig, logoBuilder, homeSeo };
     try {
       const res = await fetch(`/api/sites/${selectedSiteId}`, {
         method: "PUT",
@@ -555,6 +569,25 @@ export default function ParametresPage() {
     }
   }
 
+  async function generateHomeSeo() {
+    if (!selectedSiteId) return;
+    setGeneratingHomeSeo(true);
+    try {
+      const res = await fetch("/api/admin/generate-home-seo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId: selectedSiteId }),
+      });
+      if (!res.ok) { alert("Erreur lors de la génération SEO de l'accueil."); return; }
+      const { data } = await res.json();
+      if (typeof data?.metaTitle === "string") setHomeMetaTitle(data.metaTitle);
+      if (typeof data?.metaDescription === "string") setHomeMetaDescription(data.metaDescription);
+      setIsDirty(true);
+    } finally {
+      setGeneratingHomeSeo(false);
+    }
+  }
+
   // ── Logo builder ──
   function buildLogoSvg(): string {
     const part1 = logoPart1 || "";
@@ -596,9 +629,11 @@ export default function ParametresPage() {
     const b64 = btoa(unescape(encodeURIComponent(svg)));
     const dataUrl = `data:image/svg+xml;base64,${b64}`;
     setLogoUrl(dataUrl);
-    // Met à jour le nom du site avec les parties du logo
+    // Met à jour le nom du site avec les parties du logo, sans laisser le
+    // useEffect re-hydrater les champs depuis l'ancien logoBuilder en DB.
     const sep = logoSeparator === " " ? " " : (logoSeparator || "");
     const newName = [logoPart1, sep, logoPart2].filter(Boolean).join("");
+    skipSiteEffectRef.current = true;
     setSites((prev) =>
       prev.map((s) =>
         s.id === selectedSiteId ? { ...s, name: newName } : s
@@ -882,6 +917,64 @@ export default function ParametresPage() {
             </div>
           </div>
         </div>
+
+        {/* ── SEO PAGE D'ACCUEIL ── */}
+        <div style={sectionTitle}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          SEO de la page d&apos;accueil
+        </div>
+        <div style={card}>
+          <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+              Définissez la meta title et la meta description affichées par les moteurs de recherche pour la page d&apos;accueil. Claude peut les générer en se basant sur vos catégories et vos articles publiés.
+            </p>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                Meta title <span style={{ color: homeMetaTitle.length > 60 ? "var(--danger)" : "var(--text-muted)" }}>({homeMetaTitle.length}/60)</span>
+              </label>
+              <input
+                style={inp}
+                value={homeMetaTitle}
+                onChange={e => { setHomeMetaTitle(e.target.value); setIsDirty(true); }}
+                placeholder="Ex: Maison & Conseil — Déco, jardin, immobilier"
+                maxLength={120}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                Meta description <span style={{ color: homeMetaDescription.length > 160 ? "var(--danger)" : "var(--text-muted)" }}>({homeMetaDescription.length}/160)</span>
+              </label>
+              <textarea
+                style={{ ...inp, minHeight: 72, fontFamily: "inherit", resize: "vertical" }}
+                value={homeMetaDescription}
+                onChange={e => { setHomeMetaDescription(e.target.value); setIsDirty(true); }}
+                placeholder="Une description courte et engageante (140-160 caractères) qui apparaît dans Google."
+                maxLength={250}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={generateHomeSeo}
+                disabled={generatingHomeSeo}
+                style={{
+                  ...btnGhost, fontSize: 12,
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  opacity: generatingHomeSeo ? 0.6 : 1,
+                  cursor: generatingHomeSeo ? "default" : "pointer",
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                {generatingHomeSeo ? "Génération…" : "Générer avec Claude"}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* ── MENU DE NAVIGATION ── */}
         <div style={sectionTitle}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={2}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>

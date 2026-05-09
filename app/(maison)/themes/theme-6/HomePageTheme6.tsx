@@ -75,22 +75,15 @@ export function HomePageTheme6({
 
   // Group all articles by category (excluding heroArt)
   const allArts = [heroArt, ...cardArts, ...moreArts].filter(Boolean) as Article[];
-  // Toutes les catégories présentes dans les articles, dans l'ordre de la config si disponible
-  const allArticleCats = [...new Set(allArts.map(a => a.category).filter(Boolean))] as string[];
-  const catOrder = allArticleCats.sort((a, b) => {
-    const ia = allCats.indexOf(a);
-    const ib = allCats.indexOf(b);
-    if (ia === -1 && ib === -1) return 0;
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-
-  const grouped: { name: string; slug: string; articles: Article[] }[] = catOrder.map(name => {
+  // On affiche TOUTES les catégories configurées (même celles sans article
+  // récent), dans l'ordre de la config. Les catégories sans article restent
+  // visibles avec leur entête, ce qui évite l'effet "il n'y a que 2 rubriques"
+  // quand la majorité des articles publiés vient d'une seule catégorie.
+  const grouped: { name: string; slug: string; articles: Article[] }[] = allCats.map(name => {
     const slug = catSlug(name);
     const arts = allArts.filter(a => a.category === name);
     return { name, slug, articles: arts };
-  }).filter(g => g.articles.length > 0);
+  });
 
   const heroColor = getCatColor(heroArt?.category);
 
@@ -467,6 +460,31 @@ export function HomePageTheme6({
               const gc = getCatColor(g.name);
               const arts = g.articles.slice(0, 3);
               const gridClass = arts.length === 1 ? "t6-grid-2" : arts.length === 2 ? "t6-grid-2" : "t6-grid-3";
+              if (arts.length === 0) {
+                return (
+                  <div key={g.slug} className="t6-cat-section">
+                    <div className="t6-cat-header">
+                      <div className="t6-cat-header-left">
+                        <div className="t6-cat-dot" style={{ background: gc.badge }} />
+                        <span className="t6-cat-name">{g.name}</span>
+                        <span className="t6-cat-count">À venir</span>
+                      </div>
+                      <Link href={`/${g.slug}`} className="t6-cat-link">
+                        Tout voir →
+                      </Link>
+                    </div>
+                    <div style={{
+                      padding: "32px 28px", borderRadius: 8,
+                      background: gc.bg, color: gc.text,
+                      fontFamily: "var(--f-heading, sans-serif)", fontSize: 13,
+                      letterSpacing: "0.04em", textAlign: "center",
+                      border: `1px dashed ${gc.badge}`,
+                    }}>
+                      Aucun article publié dans cette rubrique pour le moment.
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={g.slug} className="t6-cat-section">
                   <div className="t6-cat-header">

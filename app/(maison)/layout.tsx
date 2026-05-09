@@ -22,10 +22,31 @@ function buildGoogleFontsUrl(fonts: { display: string; heading: string; body: st
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
 
-export const metadata: Metadata = {
-  title: "Maison & Conseil — Déco, Immobilier, Jardin, Piscine",
-  description: "Conseils d'experts en décoration, immobilier, jardin et piscine.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const site = await prisma.site.findFirst();
+  const fallbackTitle = site?.name
+    ? `${site.name} — Conseils & expertise`
+    : "Maison & Conseil — Déco, Immobilier, Jardin, Piscine";
+  const fallbackDescription = "Conseils d'experts en décoration, immobilier, jardin et piscine.";
+  if (!site) return { title: fallbackTitle, description: fallbackDescription };
+
+  const menuConfig = parseJsonField(site.menuConfig) as Record<string, unknown> | null;
+  const homeSeo = (menuConfig?.homeSeo ?? {}) as { metaTitle?: string; metaDescription?: string };
+  const title = homeSeo.metaTitle?.trim() || fallbackTitle;
+  const description = homeSeo.metaDescription?.trim() || fallbackDescription;
+  const canonicalUrl = site.url?.replace(/\/$/, "") ?? undefined;
+
+  return {
+    title,
+    description,
+    ...(canonicalUrl ? { alternates: { canonical: canonicalUrl } } : {}),
+    openGraph: {
+      title,
+      description,
+      ...(canonicalUrl ? { url: canonicalUrl, type: "website" } : {}),
+    },
+  };
+}
 
 type SiteSetup = {
   categories?: string[];
