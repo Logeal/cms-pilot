@@ -80,6 +80,16 @@ export function ArticlePageTheme12({ category, article, related, articleUrl }: P
         .t12a-rel-date { font-family: var(--f-heading, sans-serif); font-size: 10px; color: rgba(240,237,232,0.2); }
 
         @media (max-width: 768px) { .t12a-topbar, .t12a-hero-body, .t12a-content, .t12a-related { padding-left: 20px; padding-right: 20px; } }
+        /* Tableaux dans le contenu d'article */
+        .t12a-body table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 15px; line-height: 1.55; border: 1px solid #e5e2db; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .t12a-body table thead { background: #1a1a1a; }
+        .t12a-body table thead th { padding: 13px 16px; text-align: left; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: none; }
+        .t12a-body table tbody td { padding: 12px 16px; border-bottom: 1px solid #eceae3; vertical-align: top; }
+        .t12a-body table tbody tr:last-child td { border-bottom: none; }
+        .t12a-body table tbody tr:nth-child(even) { background: #faf8f3; }
+        .t12a-body table tbody tr:hover { background: #f3f0e8; }
+        .t12a-body table p { margin: 0; }
+        @media (max-width: 640px) { .t12a-body table { font-size: 13.5px; display: block; overflow-x: auto; } }
       `}} />
 
       <div className="t12a">

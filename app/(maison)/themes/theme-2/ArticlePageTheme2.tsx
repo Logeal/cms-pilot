@@ -388,6 +388,16 @@ export function ArticlePageTheme2({ category, article, related, articleUrl }: Pr
           .t2a-expert-card { flex-direction: column; padding: 24px; }
           .t2a-related-grid { grid-template-columns: 1fr; gap: 14px; }
         }
+        /* Tableaux dans le contenu d'article */
+        .t2a-content table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 15px; line-height: 1.55; border: 1px solid #e5e2db; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .t2a-content table thead { background: #1a1a1a; }
+        .t2a-content table thead th { padding: 13px 16px; text-align: left; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: none; }
+        .t2a-content table tbody td { padding: 12px 16px; border-bottom: 1px solid #eceae3; vertical-align: top; }
+        .t2a-content table tbody tr:last-child td { border-bottom: none; }
+        .t2a-content table tbody tr:nth-child(even) { background: #faf8f3; }
+        .t2a-content table tbody tr:hover { background: #f3f0e8; }
+        .t2a-content table p { margin: 0; }
+        @media (max-width: 640px) { .t2a-content table { font-size: 13.5px; display: block; overflow-x: auto; } }
       `}} />
 
       {/* Breadcrumb */}

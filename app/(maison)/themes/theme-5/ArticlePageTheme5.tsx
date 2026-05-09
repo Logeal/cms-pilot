@@ -86,6 +86,16 @@ export function ArticlePageTheme5({ category, article, related, articleUrl }: Pr
         .t5a-rel-title a:hover { text-decoration: underline; }
         .t5a-rel-desc { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 10px; }
         .t5a-rel-meta { font-family: var(--f-heading, sans-serif); font-size: 10px; color: rgba(255,255,255,0.25); }
+        /* Tableaux dans le contenu d'article */
+        .t5a-content table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 15px; line-height: 1.55; border: 1px solid #e5e2db; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .t5a-content table thead { background: #1a1a1a; }
+        .t5a-content table thead th { padding: 13px 16px; text-align: left; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: none; }
+        .t5a-content table tbody td { padding: 12px 16px; border-bottom: 1px solid #eceae3; vertical-align: top; }
+        .t5a-content table tbody tr:last-child td { border-bottom: none; }
+        .t5a-content table tbody tr:nth-child(even) { background: #faf8f3; }
+        .t5a-content table tbody tr:hover { background: #f3f0e8; }
+        .t5a-content table p { margin: 0; }
+        @media (max-width: 640px) { .t5a-content table { font-size: 13.5px; display: block; overflow-x: auto; } }
       `}} />
 
       <div className="t5a-page">

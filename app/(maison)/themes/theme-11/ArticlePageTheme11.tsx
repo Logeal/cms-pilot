@@ -78,6 +78,16 @@ export function ArticlePageTheme11({ category, article, related, articleUrl }: P
         .t11a-rel-img-empty { width: 100%; aspect-ratio: 3/2; background: #F0EDE8; }
 
         @media (max-width: 480px) { .t11a-topbar, .t11a-header, .t11a-img-wrap, .t11a-body, .t11a-related { padding-left: 20px; padding-right: 20px; } }
+        /* Tableaux dans le contenu d'article */
+        .t11a-body table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 15px; line-height: 1.55; border: 1px solid #e5e2db; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .t11a-body table thead { background: #1a1a1a; }
+        .t11a-body table thead th { padding: 13px 16px; text-align: left; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: none; }
+        .t11a-body table tbody td { padding: 12px 16px; border-bottom: 1px solid #eceae3; vertical-align: top; }
+        .t11a-body table tbody tr:last-child td { border-bottom: none; }
+        .t11a-body table tbody tr:nth-child(even) { background: #faf8f3; }
+        .t11a-body table tbody tr:hover { background: #f3f0e8; }
+        .t11a-body table p { margin: 0; }
+        @media (max-width: 640px) { .t11a-body table { font-size: 13.5px; display: block; overflow-x: auto; } }
       `}} />
 
       <div className="t11a">
