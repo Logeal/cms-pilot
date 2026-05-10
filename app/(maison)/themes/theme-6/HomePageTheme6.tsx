@@ -61,27 +61,26 @@ type Props = {
   totalArticles: number; totalCats: number;
   heroArt: Article | undefined; cardArts: Article[]; moreArts: Article[];
   categoriesData?: CategoryData[];
+  articlesByCategory?: Record<string, Article[]>;
 };
 
 export function HomePageTheme6({
   expertiseCats, extraCats, categoryHeroImages,
   totalArticles, totalCats, heroArt, cardArts, moreArts,
   categoriesData = [],
+  articlesByCategory = {},
 }: Props) {
   const allCats = [...expertiseCats, ...extraCats];
 
   // Hero sidebar: next 6 articles
   const sideArts = cardArts.slice(0, 6);
 
-  // Group all articles by category (excluding heroArt)
-  const allArts = [heroArt, ...cardArts, ...moreArts].filter(Boolean) as Article[];
-  // On affiche TOUTES les catégories configurées (même celles sans article
-  // récent), dans l'ordre de la config. Les catégories sans article restent
-  // visibles avec leur entête, ce qui évite l'effet "il n'y a que 2 rubriques"
-  // quand la majorité des articles publiés vient d'une seule catégorie.
+  // On affiche TOUTES les catégories configurées et on lit les articles
+  // dédiés (récupérés en page.tsx avec une requête par catégorie). Les
+  // catégories sans article restent visibles avec un placeholder.
   const grouped: { name: string; slug: string; articles: Article[] }[] = allCats.map(name => {
     const slug = catSlug(name);
-    const arts = allArts.filter(a => a.category === name);
+    const arts = articlesByCategory[name] ?? [];
     return { name, slug, articles: arts };
   });
 

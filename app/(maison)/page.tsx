@@ -80,6 +80,25 @@ export default async function HomePage() {
   // Match categoriesData to activeCategories
   const categoriesData = allCategoriesData;
 
+  // Pour chaque catégorie active, garantir au moins 3 articles à afficher en
+  // accueil (sinon les thèmes qui regroupent par rubrique — comme theme-6 —
+  // affichent une rubrique vide alors que des articles existent en BDD mais
+  // hors de la fenêtre des 25 plus récents).
+  const articlesByCategory: Record<string, typeof articles> = {};
+  for (const cat of activeCategories) {
+    const fromBatch = articles.filter(a => a.category === cat);
+    if (fromBatch.length >= 3) {
+      articlesByCategory[cat] = fromBatch.slice(0, 3);
+      continue;
+    }
+    const extra = await prisma.article.findMany({
+      where: { siteId: site.id, status: "published", category: cat },
+      orderBy: { publishedAt: "desc" },
+      take: 3,
+    });
+    articlesByCategory[cat] = extra;
+  }
+
   const props = {
     home,
     heroImageUrl,
@@ -92,6 +111,7 @@ export default async function HomePage() {
     cardArts,
     moreArts,
     categoriesData,
+    articlesByCategory,
   };
 
   if (themeId === "theme-2") return <HomePageTheme2 {...props} />;
