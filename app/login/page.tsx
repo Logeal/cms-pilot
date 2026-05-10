@@ -23,7 +23,7 @@ export default function LoginPage() {
     if (res.ok) {
       router.push("/admin/sites");
     } else {
-      setError("Email ou mot de passe incorrect");
+      setError("Identifiant ou mot de passe incorrect");
     }
   }
 
@@ -48,11 +48,12 @@ export default function LoginPage() {
 
         <form onSubmit={submit}>
           <label style={{ display: "block", marginBottom: 14 }}>
-            <span style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>Email</span>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>Identifiant</span>
             <input
-              type="email" value={email}
+              type="text" value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required autoFocus
+              required autoFocus autoComplete="username" autoCapitalize="off" spellCheck={false}
+              placeholder="email ou nom d'utilisateur"
               style={{
                 width: "100%", padding: "10px 12px", borderRadius: 8,
                 background: "var(--bg-tertiary)", border: "1px solid var(--border)",

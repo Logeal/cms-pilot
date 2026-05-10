@@ -160,7 +160,11 @@ export default function ParametresPage() {
     setWorkerError("");
     const email = newWorkerEmail.trim().toLowerCase();
     const password = newWorkerPassword;
-    if (!email) { setWorkerError("Email requis."); return; }
+    if (!email) { setWorkerError("Identifiant requis."); return; }
+    if (!/^[a-zA-Z0-9._@-]{3,64}$/.test(email)) {
+      setWorkerError("Identifiant invalide : 3 à 64 caractères (lettres, chiffres, . _ - @).");
+      return;
+    }
     if (password.length < 10) { setWorkerError("Le mot de passe doit faire au moins 10 caractères."); return; }
     setCreatingWorker(true);
     const res = await fetch("/api/admin/workers", {
@@ -1251,7 +1255,7 @@ export default function ParametresPage() {
         <div style={card}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
             <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
-              Les workers ont uniquement accès à la liste des articles et à l&apos;ajout d&apos;URLs d&apos;images. Ils ne peuvent pas voir le contenu des articles, les modifier ni les supprimer. Choisissez un mot de passe d&apos;au moins 10 caractères.
+              Les workers ont uniquement accès à la liste des articles et à l&apos;ajout d&apos;URLs d&apos;images. Ils ne peuvent pas voir le contenu des articles, les modifier ni les supprimer. L&apos;identifiant peut être un email <em>ou</em> un simple nom d&apos;utilisateur (ex : <code>worker1</code>). Mot de passe d&apos;au moins 10 caractères.
             </p>
           </div>
 
@@ -1299,11 +1303,13 @@ export default function ParametresPage() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
               <input
                 style={{ ...inp, flex: "1 1 200px" }}
-                type="email"
+                type="text"
                 value={newWorkerEmail}
                 onChange={e => setNewWorkerEmail(e.target.value)}
-                placeholder="email@exemple.com"
+                placeholder="worker1 ou email@exemple.com"
                 autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
               <input
                 style={{ ...inp, flex: "1 1 200px" }}

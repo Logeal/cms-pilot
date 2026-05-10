@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { hashPassword } from "@/lib/auth";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Identifier may be an email (kept for back-compat) or a plain username
+// like "worker1". Restrict to letters, digits, dot, dash, underscore and @
+// so it's safe to render and compare. Min 3 chars to avoid trivial logins.
+const IDENT_RE = /^[a-zA-Z0-9._@-]{3,64}$/;
 const MIN_PASSWORD_LEN = 10;
 
 export async function GET() {
@@ -28,8 +31,11 @@ export async function POST(req: NextRequest) {
   const email = (body.email ?? "").trim().toLowerCase();
   const password = body.password ?? "";
 
-  if (!EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: "Email invalide" }, { status: 400 });
+  if (!IDENT_RE.test(email)) {
+    return NextResponse.json(
+      { error: "Identifiant invalide. Utilisez 3 à 64 caractères : lettres, chiffres, . _ - @" },
+      { status: 400 }
+    );
   }
   if (password.length < MIN_PASSWORD_LEN) {
     return NextResponse.json(
@@ -39,14 +45,14 @@ export async function POST(req: NextRequest) {
   }
   if (email === process.env.ADMIN_EMAIL?.toLowerCase()) {
     return NextResponse.json(
-      { error: "Cet email est déjà utilisé par l'administrateur." },
+      { error: "Cet identifiant est déjà utilisé par l'administrateur." },
       { status: 400 }
     );
   }
 
   const existing = await prisma.worker.findUnique({ where: { email } });
   if (existing) {
-    return NextResponse.json({ error: "Un worker avec cet email existe déjà." }, { status: 409 });
+    return NextResponse.json({ error: "Un worker avec cet identifiant existe déjà." }, { status: 409 });
   }
 
   const passwordHash = hashPassword(password);
