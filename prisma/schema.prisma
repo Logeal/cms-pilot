@@ -57,6 +57,14 @@ model Theme {
   createdAt   DateTime @default(now())
 }
 
+model Worker {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+}
+
 model Category {
   id              String   @id @default(cuid())
   label           String   @unique

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { findPublishedConflict } from "@/lib/duplicates";
 import { requireAuth } from "@/lib/requireAuth";
+import { getSession } from "@/lib/auth";
 import { toSlug, isValidStatus } from "@/lib/slug";
 
 export async function GET(
@@ -24,12 +25,27 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireAuth();
+  const denied = await requireAuth(["admin", "worker"]);
   if (denied) return denied;
+
+  const session = await getSession();
+  const isWorker = session?.role === "worker";
 
   const { id } = await params;
   const body = await req.json();
   const data: Record<string, unknown> = {};
+
+  // Workers may only update imageUrl. Reject any attempt to send other fields.
+  if (isWorker) {
+    const keys = Object.keys(body ?? {});
+    const disallowed = keys.filter(k => k !== "imageUrl");
+    if (disallowed.length > 0) {
+      return NextResponse.json(
+        { error: "Forbidden", message: "Workers may only update imageUrl." },
+        { status: 403 }
+      );
+    }
+  }
 
   if (body.status !== undefined) {
     if (!isValidStatus(body.status)) {

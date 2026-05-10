@@ -30,6 +30,50 @@ const STATUS_LABELS: Record<string, string> = {
   duplicate: "Problème doublon",
 };
 
+const STRINGS = {
+  pageTitle:           { fr: "Articles",                                en: "Articles" },
+  searchPlaceholder:   { fr: "Rechercher…",                             en: "Search…" },
+  allStatuses:         { fr: "Tous les statuts",                        en: "All statuses" },
+  allCategories:       { fr: "Toutes catégories",                       en: "All categories" },
+  allSites:            { fr: "Tous les sites",                          en: "All sites" },
+  reset:               { fr: "Réinitialiser",                           en: "Reset" },
+  doublons:            { fr: "Doublons",                                en: "Duplicates" },
+  imageMissing:        { fr: "Image manquante",                         en: "Missing image" },
+  allArticles:         { fr: "Tous les articles",                       en: "All articles" },
+  newArticle:          { fr: "Nouvel article",                          en: "New article" },
+  colTitle:            { fr: "Titre",                                   en: "Title" },
+  colKeyword:          { fr: "Mot-clé principal",                       en: "Main keyword" },
+  colCategory:         { fr: "Catégorie",                               en: "Category" },
+  colStatus:           { fr: "Statut",                                  en: "Status" },
+  colDate:             { fr: "Date",                                    en: "Date" },
+  colImageUrl:         { fr: "URL image à la une",                      en: "Featured image URL" },
+  loading:             { fr: "Chargement…",                             en: "Loading…" },
+  emptyAll:            { fr: "Aucun article trouvé",                    en: "No articles found" },
+  emptyMissing:        { fr: "Tous les articles ont une image à la une 🎉", en: "All articles have a featured image 🎉" },
+  publish:             { fr: "Publier",                                 en: "Publish" },
+  edit:                { fr: "Éditer",                                  en: "Edit" },
+  del:                 { fr: "Suppr.",                                  en: "Del." },
+  save:                { fr: "Sauver",                                  en: "Save" },
+  saving:              { fr: "…",                                       en: "…" },
+  statusDraft:         { fr: "Brouillon",                               en: "Draft" },
+  statusPublished:     { fr: "Publié",                                  en: "Published" },
+  statusScheduled:     { fr: "Planifié",                                en: "Scheduled" },
+  statusDuplicate:     { fr: "Problème doublon",                        en: "Duplicate issue" },
+  noCategory:          { fr: "— ajouter",                               en: "— add" },
+  langButton:          { fr: "EN",                                      en: "FR" },
+  langTooltip:         { fr: "Switch to English",                       en: "Passer en français" },
+} as const;
+
+function statusLabel(status: string, lang: "fr" | "en"): string {
+  switch (status) {
+    case "draft": return lang === "fr" ? "Brouillon" : "Draft";
+    case "published": return lang === "fr" ? "Publié" : "Published";
+    case "scheduled": return lang === "fr" ? "Planifié" : "Scheduled";
+    case "duplicate": return lang === "fr" ? "Problème doublon" : "Duplicate issue";
+    default: return status;
+  }
+}
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "badge badge-draft",
   published: "badge badge-published",
@@ -103,17 +147,46 @@ export default function ArticlesPage() {
   const [imageDrafts, setImageDrafts] = useState<Record<string, string>>({});
   const [savingImage, setSavingImage] = useState<string | null>(null);
 
+  // Role + i18n
+  const [role, setRole] = useState<"admin" | "worker" | null>(null);
+  const [lang, setLang] = useState<"fr" | "en">("fr");
+  const isWorker = role === "worker";
+  const t = (key: keyof typeof STRINGS) => STRINGS[key]?.[lang] ?? key;
+
+  // Hydrate language preference from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("cms_lang");
+    if (saved === "fr" || saved === "en") setLang(saved);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("cms_lang", lang);
+  }, [lang]);
+
+  // Fetch current role; force image-missing mode for workers
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { role?: "admin" | "worker" } | null) => {
+        if (!data?.role) { setRole("admin"); return; }
+        setRole(data.role);
+        if (data.role === "worker") setImageMissingMode(true);
+      })
+      .catch(() => setRole("admin"));
+  }, []);
+
   async function load() {
-    const [artRes, catRes] = await Promise.all([
-      fetch("/api/articles"),
-      fetch("/api/categories"),
-    ]);
-    setArticles(await artRes.json());
-    setCategories(await catRes.json());
+    const requests: Promise<Response>[] = [fetch("/api/articles")];
+    // Workers don't need /api/categories (admin-only) and the bulk-edit
+    // dropdown they can't use anyway.
+    if (!isWorker) requests.push(fetch("/api/categories"));
+    const responses = await Promise.all(requests);
+    setArticles(await responses[0].json());
+    if (responses[1]) setCategories(await responses[1].json());
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (role) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [role]);
 
   useEffect(() => {
     if (showModal) setTimeout(() => titleInputRef.current?.focus(), 50);
@@ -292,38 +365,44 @@ export default function ArticlesPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Articles</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700 }}>{t("pageTitle")}</h1>
           <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>
             {filtered.length} / {articles.length} article{articles.length !== 1 ? "s" : ""}
-            {activeFilters > 0 && <span style={{ marginLeft: 6, color: "var(--accent-light)" }}>({activeFilters} filtre{activeFilters > 1 ? "s" : ""})</span>}
+            {activeFilters > 0 && !isWorker && <span style={{ marginLeft: 6, color: "var(--accent-light)" }}>({activeFilters} filtre{activeFilters > 1 ? "s" : ""})</span>}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          {!isWorker && (
+            <button
+              onClick={openDuplicates}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 14px", borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--bg-secondary)", color: "var(--text-secondary)",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              {t("doublons")}
+            </button>
+          )}
           <button
-            onClick={openDuplicates}
-            style={{
-              display: "flex", alignItems: "center", gap: 7,
-              padding: "9px 14px", borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--bg-secondary)", color: "var(--text-secondary)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            Doublons
-          </button>
-          <button
-            onClick={toggleImageMissingMode}
+            onClick={isWorker ? undefined : toggleImageMissingMode}
+            disabled={isWorker}
+            title={isWorker ? "Mode worker — accès limité aux images manquantes" : undefined}
             style={{
               display: "flex", alignItems: "center", gap: 7,
               padding: "9px 14px", borderRadius: 8,
               border: `1px solid ${imageMissingMode ? "var(--accent)" : "var(--border)"}`,
               background: imageMissingMode ? "var(--accent-bg)" : "var(--bg-secondary)",
               color: imageMissingMode ? "var(--accent-light)" : "var(--text-secondary)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              fontSize: 13, fontWeight: 600,
+              cursor: isWorker ? "default" : "pointer",
+              opacity: isWorker ? 0.85 : 1,
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -331,22 +410,44 @@ export default function ArticlesPage() {
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <path d="M21 15l-5-5L5 21"/>
             </svg>
-            {imageMissingMode ? "Tous les articles" : "Image manquante"}
+            {imageMissingMode && !isWorker ? t("allArticles") : t("imageMissing")}
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setLang(l => l === "fr" ? "en" : "fr")}
+            title={t("langTooltip")}
+            aria-label={t("langTooltip")}
             style={{
               display: "flex", alignItems: "center", gap: 7,
-              padding: "9px 18px", borderRadius: 8, border: "none",
-              background: "var(--accent)", color: "#fff",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              padding: "9px 12px", borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--bg-secondary)", color: "var(--text-secondary)",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              fontFamily: "ui-monospace, monospace", letterSpacing: 0.5,
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
-            Nouvel article
+            {t("langButton")}
           </button>
+          {!isWorker && (
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 18px", borderRadius: 8, border: "none",
+                background: "var(--accent)", color: "#fff",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              {t("newArticle")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -355,38 +456,42 @@ export default function ArticlesPage() {
         <input
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Rechercher…"
+          placeholder={t("searchPlaceholder")}
           style={{
             flex: "1 1 200px", maxWidth: 320, padding: "8px 12px", borderRadius: 8,
             background: "var(--bg-secondary)", border: "1px solid var(--border)",
             color: "var(--text-primary)", fontSize: 13, outline: "none",
           }}
         />
-        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }}>
-          <option value="all">Tous les statuts</option>
-          <option value="draft">Brouillon</option>
-          <option value="published">Publié</option>
-          <option value="scheduled">Planifié</option>
-          <option value="duplicate">Problème doublon</option>
-        </Select>
-        <Select value={categoryFilter} onChange={v => { setCategoryFilter(v); setPage(1); }}>
-          <option value="all">Toutes catégories</option>
-          <option value="">Sans catégorie</option>
-          {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
-        </Select>
-        {uniqueSites.length > 1 && (
-          <Select value={siteFilter} onChange={v => { setSiteFilter(v); setPage(1); }}>
-            <option value="all">Tous les sites</option>
-            {uniqueSites.map(s => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        )}
-        {activeFilters > 0 && (
-          <button
-            onClick={() => { setStatusFilter("all"); setCategoryFilter("all"); setSiteFilter("all"); setSearch(""); setPage(1); }}
-            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}
-          >
-            Réinitialiser
-          </button>
+        {!isWorker && (
+          <>
+            <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }}>
+              <option value="all">{t("allStatuses")}</option>
+              <option value="draft">{statusLabel("draft", lang)}</option>
+              <option value="published">{statusLabel("published", lang)}</option>
+              <option value="scheduled">{statusLabel("scheduled", lang)}</option>
+              <option value="duplicate">{statusLabel("duplicate", lang)}</option>
+            </Select>
+            <Select value={categoryFilter} onChange={v => { setCategoryFilter(v); setPage(1); }}>
+              <option value="all">{t("allCategories")}</option>
+              <option value="">{lang === "fr" ? "Sans catégorie" : "No category"}</option>
+              {categories.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
+            </Select>
+            {uniqueSites.length > 1 && (
+              <Select value={siteFilter} onChange={v => { setSiteFilter(v); setPage(1); }}>
+                <option value="all">{t("allSites")}</option>
+                {uniqueSites.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            )}
+            {activeFilters > 0 && (
+              <button
+                onClick={() => { setStatusFilter("all"); setCategoryFilter("all"); setSiteFilter("all"); setSearch(""); setPage(1); }}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}
+              >
+                {t("reset")}
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -456,21 +561,23 @@ export default function ArticlesPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <th style={{ padding: "12px 16px", width: 36 }}>
-                <input
-                  type="checkbox"
-                  checked={filtered.length > 0 && selected.size === filtered.length}
-                  ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
-                  onChange={toggleSelectAll}
-                  style={{ cursor: "pointer" }}
-                />
-              </th>
+              {!isWorker && (
+                <th style={{ padding: "12px 16px", width: 36 }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selected.size === filtered.length}
+                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>
+              )}
               {([
-                { key: "title",     label: "Titre" },
-                { key: "keyword",   label: "Mot-clé principal" },
-                { key: "category",  label: "Catégorie" },
-                { key: "status",    label: "Statut" },
-                { key: "createdAt", label: "Date" },
+                { key: "title",     label: t("colTitle") },
+                { key: "keyword",   label: t("colKeyword") },
+                { key: "category",  label: t("colCategory") },
+                { key: "status",    label: t("colStatus") },
+                { key: "createdAt", label: t("colDate") },
               ] as { key: SortKey; label: string }[]).map(col => (
                 <th
                   key={col.key}
@@ -492,18 +599,18 @@ export default function ArticlesPage() {
                   fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5,
                   whiteSpace: "nowrap",
                 }}>
-                  URL image à la une
+                  {t("colImageUrl")}
                 </th>
               )}
-              <th style={{ padding: "12px 16px" }} />
+              {!isWorker && <th style={{ padding: "12px 16px" }} />}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={imageMissingMode ? 8 : 7} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</td></tr>
+              <tr><td colSpan={isWorker ? (imageMissingMode ? 6 : 5) : (imageMissingMode ? 8 : 7)} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>{t("loading")}</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={imageMissingMode ? 8 : 7} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-                {imageMissingMode ? "Tous les articles ont une image à la une 🎉" : "Aucun article trouvé"}
+              <tr><td colSpan={isWorker ? (imageMissingMode ? 6 : 5) : (imageMissingMode ? 8 : 7)} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+                {imageMissingMode ? t("emptyMissing") : t("emptyAll")}
               </td></tr>
             ) : paginated.map(a => (
               <tr
@@ -512,13 +619,19 @@ export default function ArticlesPage() {
                 onMouseEnter={e => { if (!selected.has(a.id)) e.currentTarget.style.background = "var(--bg-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = selected.has(a.id) ? "var(--accent-bg)" : "transparent"; }}
               >
+                {!isWorker && (
+                  <td style={{ padding: "12px 16px" }}>
+                    <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)} style={{ cursor: "pointer" }} />
+                  </td>
+                )}
                 <td style={{ padding: "12px 16px" }}>
-                  <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)} style={{ cursor: "pointer" }} />
-                </td>
-                <td style={{ padding: "12px 16px" }}>
-                  <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
-                    {a.title}
-                  </Link>
+                  {isWorker ? (
+                    <span style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: 13 }}>{a.title}</span>
+                  ) : (
+                    <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
+                      {a.title}
+                    </Link>
+                  )}
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>/{a.slug}</div>
                 </td>
                 <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--text-secondary)" }}>
@@ -527,7 +640,7 @@ export default function ArticlesPage() {
                     : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>—</span>}
                 </td>
                 <td style={{ padding: "8px 16px", fontSize: 13 }}>
-                  {editingCatId === a.id ? (
+                  {!isWorker && editingCatId === a.id ? (
                     <select
                       autoFocus
                       value={a.category ?? ""}
@@ -544,24 +657,24 @@ export default function ArticlesPage() {
                     </select>
                   ) : (
                     <span
-                      onClick={() => setEditingCatId(a.id)}
-                      title="Cliquer pour modifier"
-                      style={{ cursor: "pointer" }}
+                      onClick={isWorker ? undefined : () => setEditingCatId(a.id)}
+                      title={isWorker ? undefined : "Cliquer pour modifier"}
+                      style={{ cursor: isWorker ? "default" : "pointer" }}
                     >
                       {a.category
                         ? <span style={{ padding: "2px 8px", borderRadius: 20, background: "var(--bg-tertiary)", border: "1px solid var(--border)", fontSize: 11 }}>{a.category}</span>
-                        : <span style={{ color: "var(--border)", fontSize: 12 }}>— ajouter</span>
+                        : <span style={{ color: "var(--border)", fontSize: 12 }}>{t("noCategory")}</span>
                       }
                     </span>
                   )}
                 </td>
                 <td style={{ padding: "12px 16px" }}>
                   <span className={STATUS_COLORS[a.status] ?? "badge badge-draft"}>
-                    {STATUS_LABELS[a.status] ?? a.status}
+                    {statusLabel(a.status, lang)}
                   </span>
                 </td>
                 <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                  {new Date(a.createdAt).toLocaleDateString("fr-FR")}
+                  {new Date(a.createdAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US")}
                 </td>
                 {imageMissingMode && (
                   <td style={{ padding: "8px 16px", minWidth: 320 }}>
@@ -591,11 +704,12 @@ export default function ArticlesPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {savingImage === a.id ? "…" : "Sauver"}
+                        {savingImage === a.id ? t("saving") : t("save")}
                       </button>
                     </div>
                   </td>
                 )}
+                {!isWorker && (
                 <td style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                     {a.status !== "published" && a.status !== "duplicate" && (
@@ -616,7 +730,7 @@ export default function ArticlesPage() {
                         border: "none", color: "#fff",
                         fontSize: 12, fontWeight: 600, cursor: "pointer",
                       }}>
-                        Publier
+                        {t("publish")}
                       </button>
                     )}
                     <Link href={`/admin/articles/${a.id}`} style={{
@@ -624,17 +738,18 @@ export default function ArticlesPage() {
                       border: "1px solid var(--border)", color: "var(--text-secondary)",
                       fontSize: 12, textDecoration: "none",
                     }}>
-                      Éditer
+                      {t("edit")}
                     </Link>
                     <button onClick={() => setConfirmDelete(a.id)} style={{
                       padding: "4px 10px", borderRadius: 6, background: "none",
                       border: "1px solid transparent", color: "var(--danger)",
                       fontSize: 12, cursor: "pointer",
                     }}>
-                      Suppr.
+                      {t("del")}
                     </button>
                   </div>
                 </td>
+                )}
               </tr>
             ))}
           </tbody>

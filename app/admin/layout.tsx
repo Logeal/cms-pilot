@@ -8,13 +8,13 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const ok = await getSession();
-  if (!ok) redirect("/login");
+  const session = await getSession();
+  if (!session) redirect("/login");
 
   return (
     <ThemeProvider>
       <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-        <Sidebar />
+        <Sidebar role={session.role} />
         <main
           style={{
             flex: 1,

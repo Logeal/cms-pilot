@@ -69,6 +69,18 @@ export default function ParametresPage() {
   const [homeMetaDescription, setHomeMetaDescription] = useState("");
   const [generatingHomeSeo, setGeneratingHomeSeo] = useState(false);
 
+  // Gestion des accès Worker
+  type Worker = { id: string; email: string; createdAt: string; lastLoginAt: string | null };
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [newWorkerEmail, setNewWorkerEmail] = useState("");
+  const [newWorkerPassword, setNewWorkerPassword] = useState("");
+  const [workerError, setWorkerError] = useState("");
+  const [creatingWorker, setCreatingWorker] = useState(false);
+  const [confirmDeleteWorker, setConfirmDeleteWorker] = useState<string | null>(null);
+  const [resetPwdWorkerId, setResetPwdWorkerId] = useState<string | null>(null);
+  const [resetPwdValue, setResetPwdValue] = useState("");
+  const [resetPwdError, setResetPwdError] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -139,9 +151,64 @@ export default function ParametresPage() {
     setCategories(await res.json());
   }
 
+  async function loadWorkers() {
+    const res = await fetch("/api/admin/workers");
+    if (res.ok) setWorkers(await res.json());
+  }
+
+  async function createWorker() {
+    setWorkerError("");
+    const email = newWorkerEmail.trim().toLowerCase();
+    const password = newWorkerPassword;
+    if (!email) { setWorkerError("Email requis."); return; }
+    if (password.length < 10) { setWorkerError("Le mot de passe doit faire au moins 10 caractères."); return; }
+    setCreatingWorker(true);
+    const res = await fetch("/api/admin/workers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    setCreatingWorker(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setWorkerError(data?.error ?? "Erreur lors de la création.");
+      return;
+    }
+    setNewWorkerEmail("");
+    setNewWorkerPassword("");
+    loadWorkers();
+  }
+
+  async function deleteWorker(id: string) {
+    await fetch(`/api/admin/workers/${id}`, { method: "DELETE" });
+    setConfirmDeleteWorker(null);
+    loadWorkers();
+  }
+
+  async function resetWorkerPassword(id: string) {
+    setResetPwdError("");
+    if (resetPwdValue.length < 10) {
+      setResetPwdError("Le mot de passe doit faire au moins 10 caractères.");
+      return;
+    }
+    const res = await fetch(`/api/admin/workers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: resetPwdValue }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setResetPwdError(data?.error ?? "Erreur lors de la mise à jour.");
+      return;
+    }
+    setResetPwdWorkerId(null);
+    setResetPwdValue("");
+  }
+
   useEffect(() => {
     loadSites();
     loadCategories();
+    loadWorkers();
     // Draft count only — the auto-publish config is now read from the
     // selected site's menuConfig in the per-site useEffect below.
     fetch("/api/admin/auto-publish").then((r) => r.json()).then((data) => {
@@ -721,6 +788,14 @@ export default function ParametresPage() {
       onConfirm={() => { if (confirmDeleteCat) removeCat(confirmDeleteCat); setConfirmDeleteCat(null); }}
       onCancel={() => setConfirmDeleteCat(null)}
     />
+    <ConfirmModal
+      open={confirmDeleteWorker !== null}
+      title="Supprimer ce worker"
+      message="L'accès du worker sera révoqué immédiatement. Cette action est irréversible."
+      confirmLabel="Supprimer"
+      onConfirm={() => { if (confirmDeleteWorker) deleteWorker(confirmDeleteWorker); }}
+      onCancel={() => setConfirmDeleteWorker(null)}
+    />
     <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column" }}>
 
       {/* ── Barre sticky ── */}
@@ -1161,6 +1236,95 @@ export default function ParametresPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* ── ACCÈS WORKER ── */}
+        <div style={sectionTitle}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={2}>
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Accès worker
+        </div>
+        <div style={card}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+              Les workers ont uniquement accès à la liste des articles et à l&apos;ajout d&apos;URLs d&apos;images. Ils ne peuvent pas voir le contenu des articles, les modifier ni les supprimer. Choisissez un mot de passe d&apos;au moins 10 caractères.
+            </p>
+          </div>
+
+          {/* Liste des workers */}
+          <div style={{ padding: workers.length > 0 ? "8px 0 0" : "0" }}>
+            {workers.map(w => (
+              <div key={w.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis" }}>{w.email}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                    Créé le {new Date(w.createdAt).toLocaleDateString("fr-FR")}
+                    {w.lastLoginAt && <> · Dernière connexion : {new Date(w.lastLoginAt).toLocaleDateString("fr-FR")}</>}
+                  </div>
+                </div>
+                {resetPwdWorkerId === w.id ? (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="password"
+                      value={resetPwdValue}
+                      onChange={e => setResetPwdValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") resetWorkerPassword(w.id); }}
+                      placeholder="Nouveau mot de passe…"
+                      style={{ ...inp, padding: "6px 10px", fontSize: 12, width: 200 }}
+                      autoFocus
+                    />
+                    <button onClick={() => resetWorkerPassword(w.id)} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>Enregistrer</button>
+                    <button onClick={() => { setResetPwdWorkerId(null); setResetPwdValue(""); setResetPwdError(""); }} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>Annuler</button>
+                    {resetPwdError && <span style={{ fontSize: 11, color: "var(--danger)", width: "100%" }}>{resetPwdError}</span>}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => { setResetPwdWorkerId(w.id); setResetPwdValue(""); setResetPwdError(""); }} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>Réinit. mdp</button>
+                    <button onClick={() => setConfirmDeleteWorker(w.id)} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12, color: "var(--danger)", borderColor: "var(--danger)" }}>Supprimer</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Création d'un nouveau worker */}
+          <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Ajouter un worker
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <input
+                style={{ ...inp, flex: "1 1 200px" }}
+                type="email"
+                value={newWorkerEmail}
+                onChange={e => setNewWorkerEmail(e.target.value)}
+                placeholder="email@exemple.com"
+                autoComplete="off"
+              />
+              <input
+                style={{ ...inp, flex: "1 1 200px" }}
+                type="password"
+                value={newWorkerPassword}
+                onChange={e => setNewWorkerPassword(e.target.value)}
+                placeholder="Mot de passe (10+ caractères)"
+                autoComplete="new-password"
+              />
+              <button
+                onClick={createWorker}
+                disabled={creatingWorker}
+                style={{ ...btnPrimary, fontSize: 12, opacity: creatingWorker ? 0.6 : 1 }}
+              >
+                {creatingWorker ? "Création…" : "+ Ajouter"}
+              </button>
+            </div>
+            {workerError && (
+              <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{workerError}</p>
+            )}
+          </div>
         </div>
 
         {/* ── CATÉGORIES D'ARTICLES ── */}

@@ -4,6 +4,7 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { findPublishedConflict } from "@/lib/duplicates";
 import { requireAuth } from "@/lib/requireAuth";
+import { getSession } from "@/lib/auth";
 import { toSlug, isValidStatus } from "@/lib/slug";
 
 const PRIVATE_IP = /^(https?:\/\/)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/i;
@@ -148,19 +149,33 @@ export async function POST(req: NextRequest) {
   );
 }
 
-// GET /api/articles — admin list
+// GET /api/articles — admin list (also accessible to workers, but with the
+// article body redacted: workers should only see metadata + image URL).
 export async function GET(req: NextRequest) {
-  const denied = await requireAuth();
+  const denied = await requireAuth(["admin", "worker"]);
   if (denied) return denied;
+
+  const session = await getSession();
+  const isWorker = session?.role === "worker";
 
   const { searchParams } = new URL(req.url);
   const siteId = searchParams.get("siteId");
 
-  const articles = await prisma.article.findMany({
-    where: siteId ? { siteId } : undefined,
-    orderBy: { createdAt: "desc" },
-    include: { site: { select: { name: true, url: true } } },
-  });
+  const articles = isWorker
+    ? await prisma.article.findMany({
+        where: siteId ? { siteId } : undefined,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, title: true, slug: true, status: true, category: true,
+          imageUrl: true, keyword: true, createdAt: true,
+          site: { select: { name: true, url: true } },
+        },
+      })
+    : await prisma.article.findMany({
+        where: siteId ? { siteId } : undefined,
+        orderBy: { createdAt: "desc" },
+        include: { site: { select: { name: true, url: true } } },
+      });
 
   return NextResponse.json(articles);
 }

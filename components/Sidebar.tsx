@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "./ThemeProvider";
 
+type Role = "admin" | "worker";
+
 const NAV = [
   {
     label: "Articles",
@@ -49,9 +51,15 @@ const NAV = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ role = "admin" }: { role?: Role }) {
   const path = usePathname();
   const { theme, toggle } = useTheme();
+
+  // Workers only see Articles. Defense in depth — server-side guards still
+  // enforce this; the sidebar filter is purely cosmetic.
+  const visibleNav = role === "worker"
+    ? NAV.filter(n => n.href === "/admin/articles")
+    : NAV;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -118,7 +126,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ padding: "10px 8px", flex: 1 }}>
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const active = path.startsWith(item.href);
           return (
             <Link
