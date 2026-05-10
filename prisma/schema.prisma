@@ -37,6 +37,8 @@ model Article {
   publishedAt     DateTime?
   subject         String?
   keyword         String?
+  titleEn         String?
+  keywordEn       String?
   tone            String?
   language        String    @default("FR")
   wordCount       Int?

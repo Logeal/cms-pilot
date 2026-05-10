@@ -167,7 +167,8 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         select: {
           id: true, title: true, slug: true, status: true, category: true,
-          imageUrl: true, keyword: true, createdAt: true,
+          imageUrl: true, keyword: true, titleEn: true, keywordEn: true,
+          createdAt: true,
           site: { select: { name: true, url: true } },
         },
       })

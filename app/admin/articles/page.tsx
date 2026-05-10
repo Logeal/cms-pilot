@@ -14,6 +14,8 @@ interface Article {
   createdAt: string;
   imageUrl: string | null;
   keyword: string | null;
+  titleEn: string | null;
+  keywordEn: string | null;
   site: { name: string; url: string };
 }
 
@@ -153,6 +155,10 @@ export default function ArticlesPage() {
   const isWorker = role === "worker";
   const t = (key: keyof typeof STRINGS) => STRINGS[key]?.[lang] ?? key;
 
+  // Translation spinner state — translations themselves live on the
+  // article rows as titleEn / keywordEn (persisted server-side).
+  const [translating, setTranslating] = useState(false);
+
   // Hydrate language preference from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -187,6 +193,55 @@ export default function ArticlesPage() {
   }
 
   useEffect(() => { if (role) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [role]);
+
+  // When the user switches to EN, translate any visible article whose title
+  // OR keyword is missing in DB. Each translation is persisted server-side
+  // (see /api/admin/translate-articles) so refresh/re-login keeps the EN
+  // versions without re-calling Claude.
+  const pageItems = articles
+    .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    .filter(a => (
+      // Only translate fields actually missing in DB
+      (!a.titleEn && a.title) ||
+      (!a.keywordEn && a.keyword)
+    ))
+    .map(a => ({
+      id: a.id,
+      // Send only fields that need a translation to keep the prompt tight
+      ...(!a.titleEn ? { title: a.title } : {}),
+      ...(!a.keywordEn && a.keyword ? { keyword: a.keyword } : {}),
+    }));
+  const pendingKey = lang === "en" ? pageItems.map(it => it.id).join(",") : "";
+  useEffect(() => {
+    if (lang !== "en" || pendingKey === "") return;
+    let aborted = false;
+    setTranslating(true);
+    fetch("/api/admin/translate-articles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lang: "en", items: pageItems }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (aborted || !data?.translations) return;
+        const t = data.translations as Record<string, { title?: string; keyword?: string }>;
+        // Merge into articles state so refreshes still find the cached EN
+        // values (and future pages don't re-translate this id).
+        setArticles(prev => prev.map(a => {
+          const tt = t[a.id];
+          if (!tt) return a;
+          return {
+            ...a,
+            titleEn: tt.title ?? a.titleEn,
+            keywordEn: tt.keyword ?? a.keywordEn,
+          };
+        }));
+      })
+      .catch(() => {})
+      .finally(() => { if (!aborted) setTranslating(false); });
+    return () => { aborted = true; };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [lang, pendingKey]);
 
   useEffect(() => {
     if (showModal) setTimeout(() => titleInputRef.current?.focus(), 50);
@@ -425,11 +480,17 @@ export default function ArticlesPage() {
               fontFamily: "ui-monospace, monospace", letterSpacing: 0.5,
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="2" y1="12" x2="22" y2="12"/>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
+            {translating ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ animation: "spin 1s linear infinite" }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            )}
             {t("langButton")}
           </button>
           {!isWorker && (
@@ -625,19 +686,25 @@ export default function ArticlesPage() {
                   </td>
                 )}
                 <td style={{ padding: "12px 16px" }}>
-                  {isWorker ? (
-                    <span style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: 13 }}>{a.title}</span>
-                  ) : (
-                    <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
-                      {a.title}
-                    </Link>
-                  )}
+                  {(() => {
+                    const displayTitle = lang === "en" && a.titleEn ? a.titleEn : a.title;
+                    return isWorker ? (
+                      <span style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: 13 }}>{displayTitle}</span>
+                    ) : (
+                      <Link href={`/admin/articles/${a.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
+                        {displayTitle}
+                      </Link>
+                    );
+                  })()}
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>/{a.slug}</div>
                 </td>
                 <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--text-secondary)" }}>
-                  {a.keyword
-                    ? <span style={{ color: "var(--text-primary)" }}>{a.keyword}</span>
-                    : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>—</span>}
+                  {(() => {
+                    const displayKeyword = lang === "en" && a.keywordEn ? a.keywordEn : a.keyword;
+                    return displayKeyword
+                      ? <span style={{ color: "var(--text-primary)" }}>{displayKeyword}</span>
+                      : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>—</span>;
+                  })()}
                 </td>
                 <td style={{ padding: "8px 16px", fontSize: 13 }}>
                   {!isWorker && editingCatId === a.id ? (
